@@ -42,6 +42,14 @@ _Avoid_: Visa support
 The job seeker's standing record: base resume, target roles, preferences, Sponsorship needs, and allow/deny lists. It must exist before any Stage runs.
 _Avoid_: Settings, preferences, user config
 
+**Base resume**:
+The job seeker's complete, reviewed record of experience from which every tailored resume is drawn.
+_Avoid_: Master resume, CV, source resume
+
+**Answer bank**:
+The job seeker's stored answers to recurring application-form questions.
+_Avoid_: Canned answers, form defaults
+
 ### Control
 
 **Approval**:
