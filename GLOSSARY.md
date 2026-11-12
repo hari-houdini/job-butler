@@ -11,7 +11,7 @@ One step of the job process: Discover, Screen, Tailor, Apply or Track.
 _Avoid_: Step, phase
 
 **Agent**:
-The worker that owns exactly one Stage.
+The owner of exactly one Stage: a Stage skill that deals with the job seeker, plus the worker subagent it sends unattended work to.
 _Avoid_: Bot, worker
 
 **Skill**:
@@ -23,6 +23,10 @@ _Avoid_: Subskill, tool
 **Listing**:
 A job posting as found on a source.
 _Avoid_: Job, posting, role, opening
+
+**Shortlist**:
+The ranked Listings Screen puts in front of the job seeker; picking one from it creates an Application.
+_Avoid_: Recommendations, picks
 
 **Application**:
 The job seeker's pursuit of one Listing, from shortlist through outcome; the unit the pipeline tracks.
