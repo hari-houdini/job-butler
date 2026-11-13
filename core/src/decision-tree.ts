@@ -125,6 +125,8 @@ interface Override {
   alias?: string;
   from?: string;
   into?: string;
+  /** application_limit (#42): the limit label the job seeker picked past. */
+  label?: string;
 }
 
 /**
@@ -138,6 +140,8 @@ function overrideNodes(listing: StoredRecord): string[] {
     let what = `${o.kind}`;
     if (o.kind === "split" && o.into)
       what = `Split off ${o.into}: a different job, never merged again`;
+    else if (o.kind === "application_limit")
+      what = `Picked past its Application limit: it ${o.label}`;
     else if (o.kind === "split" && o.from) {
       what = `Split from ${o.from}: a different job, never merged again`;
     }
