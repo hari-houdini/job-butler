@@ -1,0 +1,263 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway. Question: how should the job seeker see their pipeline?
+     Four structurally different variants of a read-only view built from pipeline state,
+     switchable via ?variant=A|B|C|D and the floating bar (or ← →). All data is fictional. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline View Prototype</title>
+<style>
+  :root { --bg:#f7f7f5; --panel:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e3e2dc;
+          --strong:#1f7a4d; --partial:#9a6b00; --weak:#a33a2b; --accent:#2b59c3; --chip:#efeee8; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+          --bg:#151514; --panel:#1e1e1c; --ink:#ecebe6; --muted:#9a9a92; --line:#33332f;
+          --strong:#5cc28f; --partial:#e0b04a; --weak:#ec7a68; --accent:#7ea2ff; --chip:#2a2a27; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, sans-serif; padding:16px 16px 90px; }
+  h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:14px; margin:20px 0 8px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .sub { color:var(--muted); margin-bottom:16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  .chip { display:inline-block; background:var(--chip); border-radius:999px; padding:1px 8px; font-size:12px; margin-right:4px; white-space:nowrap; }
+  .fit { font-weight:600; font-variant-numeric:tabular-nums; }
+  .strong { color:var(--strong); } .partial { color:var(--partial); } .weak { color:var(--weak); }
+  .btn { border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:6px; padding:3px 10px; font-size:12px; cursor:pointer; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  table { width:100%; border-collapse:collapse; } th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; color:var(--muted); font-weight:500; }
+  .wrap { overflow-x:auto; }
+  details summary { cursor:pointer; color:var(--muted); }
+  pre.mermaid { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px; overflow-x:auto; }
+  /* A */
+  .todo { display:flex; gap:12px; align-items:flex-start; padding:12px; border-bottom:1px solid var(--line); }
+  .todo:last-child { border-bottom:0; } .todo .kind { min-width:96px; font-size:12px; color:var(--muted); }
+  .todo .body { flex:1; } .todo .acts { display:flex; gap:6px; flex-wrap:wrap; }
+  /* B */
+  .board { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(200px,1fr); gap:10px; overflow-x:auto; padding-bottom:8px; }
+  .col { background:var(--chip); border-radius:8px; padding:8px; min-height:200px; }
+  .col h3 { font-size:12px; margin:2px 4px 8px; color:var(--muted); display:flex; justify-content:space-between; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:8px; font-size:13px; }
+  .card.needs { border-left:3px solid var(--accent); }
+  /* C */
+  .md { display:grid; grid-template-columns:minmax(220px,320px) 1fr; gap:12px; }
+  @media (max-width:760px) { .md { grid-template-columns:1fr; } }
+  .list button { display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--line); padding:10px; color:var(--ink); cursor:pointer; font:inherit; }
+  .list button.on { background:var(--chip); }
+  .detail { padding:14px; }
+  .log li { margin-bottom:4px; }
+  /* D */
+  .term { background:#0f1110; color:#d6e2d6; font:13px/1.5 ui-monospace, Menlo, monospace; padding:16px; border-radius:8px; white-space:pre; overflow-x:auto; }
+  .term .h { color:#8fd18f; } .term .y { color:#e6c35c; } .term .r { color:#ef8a7a; } .term .d { color:#7f8a7f; }
+  /* switcher: deliberately not part of the design */
+  #switcher { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); display:flex; align-items:center; gap:10px;
+              background:#111; color:#fff; border-radius:999px; padding:6px 10px; box-shadow:0 6px 20px rgba(0,0,0,.35); font:13px system-ui; z-index:9; max-width:calc(100% - 32px); }
+  #switcher button { background:#333; color:#fff; border:0; border-radius:999px; width:28px; height:28px; cursor:pointer; flex:none; }
+  #switcher span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="switcher"><button id="prev" aria-label="Previous variant">←</button><span id="label"></span><button id="next" aria-label="Next variant">→</button></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+// ---- Fictional pipeline state (what a read-only view would load from the data directory) ----
+const lastRun = { discover:"2026-11-13 08:02", track:"2026-11-13 08:04", failed:["Workday (Adatum): cxs returned an unexpected shape"] };
+const listings = [
+  { id:"greenhouse:4410", co:"Northwind Labs", role:"Senior Backend Engineer", loc:"London (hybrid)", src:"Greenhouse", fit:86, ghost:"Low", spons:"likely",  state:"shortlist" },
+  { id:"lever:9c1e",      co:"Fabrikam",       role:"Platform Engineer",      loc:"Remote (UK)",     src:"Lever",      fit:74, ghost:"Low", spons:"unknown", state:"shortlist" },
+  { id:"ashby:77ab",      co:"Tailspin Health",role:"Staff Engineer, Data",   loc:"Manchester",      src:"Ashby",      fit:58, ghost:"High",spons:"likely",  state:"shortlist" },
+  { id:"linkedin:p-31",   co:"Litware",        role:"Backend Engineer",       loc:"Leeds",           src:"LinkedIn (pasted)", fit:63, ghost:"Medium", spons:"unknown", state:"shortlist", note:"existence unverified" },
+  { id:"greenhouse:3920", co:"Contoso",        role:"Senior Software Engineer",loc:"London",         src:"Greenhouse", fit:81, ghost:"Low", spons:"likely",  state:"app", status:"Awaiting handover", needs:"Handover: review the filled form, then click Submit yourself" },
+  { id:"lever:51f0",      co:"Proseware",      role:"Backend Engineer II",    loc:"Bristol",         src:"Lever",      fit:77, ghost:"Low", spons:"likely",  state:"app", status:"Apply paused", needs:"Apply paused at \"Right to work: visa expiry date\" (no answer in Answer bank)" },
+  { id:"ashby:1d2c",      co:"Wingtip Toys",   role:"Software Engineer",      loc:"Remote (UK)",     src:"Ashby",      fit:69, ghost:"Low", spons:"likely",  state:"app", status:"Tailored" },
+  { id:"greenhouse:2871", co:"Adventure Works",role:"Senior Engineer",        loc:"London",          src:"Greenhouse", fit:83, ghost:"Low", spons:"likely",  state:"app", status:"Submitted" },
+  { id:"lever:0a9d",      co:"Coho Winery",    role:"Platform Engineer",      loc:"Edinburgh",       src:"Lever",      fit:79, ghost:"Low", spons:"likely",  state:"app", status:"Interview", needs:"Digest: Track matched an interview invite (Tue 18 Nov, 14:00). Approve the Status change?" },
+  { id:"greenhouse:1150", co:"Lucerne Publishing", role:"Backend Engineer",   loc:"Cambridge",       src:"Greenhouse", fit:71, ghost:"Low", spons:"likely",  state:"app", status:"Rejected" },
+  { id:"ashby:ff01",      co:"Margie's Travel",role:"Software Engineer",      loc:"Remote",          src:"Ashby",      fit:null, ghost:"—", spons:"—",       state:"excluded", why:"Scam gate: asks for a payment for \"equipment\" before interview" },
+  { id:"lever:77e2",      co:"Trey Research",  role:"Senior Engineer",        loc:"London",          src:"Lever",      fit:null, ghost:"—", spons:"—",       state:"excluded", why:"Employer states \"no current vacancy\" (talent pool)" },
+];
+const events = {
+  "greenhouse:3920":[["11-10","Screen","shortlisted (fit 81, Sponsorship likely)"],["11-10","—","Approval: Shortlist pick"],["11-11","Tailor","resume + cover letter produced"],["11-12","Apply","fill plan read back: 23/23 fields match"],["11-12","Apply","waiting for handover"]],
+  "lever:51f0":[["11-11","Screen","shortlisted (fit 77)"],["11-11","—","Approval: Shortlist pick"],["11-12","Tailor","resume produced"],["11-13","Apply","paused at field \"visa expiry date\""]],
+  "lever:0a9d":[["11-01","Apply","Submitted (job seeker confirmed)"],["11-13","Track","invite matched by thread → Interview (pending Approval)"]],
+};
+const ORDER = ["Picked","Tailored","Apply paused","Awaiting handover","Submitted","Interview","Offer","Rejected","Withdrawn","No response"];
+const apps = listings.filter(l=>l.state==="app"), shortlist = listings.filter(l=>l.state==="shortlist").sort((a,b)=>{
+  const flag = l => (l.ghost==="High"?1:0); return flag(a)-flag(b) || b.fit-a.fit; }), excluded = listings.filter(l=>l.state==="excluded");
+const needs = listings.filter(l=>l.needs);
+const band = f => f==null?"":f>=80?"strong":f>=50?"partial":"weak";
+const fitHtml = l => l.fit==null?"—":`<span class="fit ${band(l.fit)}">${l.fit}</span>`;
+const sponsChip = l => l.spons==="unknown"?`<span class="chip">Sponsorship unknown</span>`:"";
+const ghostChip = l => l.ghost==="High"?`<span class="chip weak">Ghost risk high</span>`:l.ghost==="Medium"?`<span class="chip partial">Ghost risk medium</span>`:"";
+const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// Each check = one node: name, rule/threshold, result, one-line citation, plus full evidence for the click-through.
+function checks(l){
+  const ex = l.state==="excluded", scam = ex && l.why.startsWith("Scam");
+  const c = [
+    { id:"scam", name:"Scam gate", rule:"No payment, crypto, reshipping or text-only interview (FTC / FBI IC3 signs)",
+      result: scam?"FAIL":"pass", cite: scam?"\"pay £149 for equipment\" in description":"no scam signs found",
+      evidence: scam?["Description paragraph 4: \"a refundable £149 equipment fee is due before your first interview\"","Matches FTC sign: upfront payment to get a job"]:["Scanned description, apply URL and contact details","No payment, crypto, reshipping or messaging-app interview wording"] },
+    { id:"vac", name:"No-vacancy statement", rule:"Employer's own \"no current vacancy\" wording excludes",
+      result: ex&&!scam?"FAIL":ex?"not reached":"pass", cite: ex&&!scam?"\"talent pool, no current vacancy\"":ex?"":"none found",
+      evidence: ex&&!scam?["Footer: \"This is a talent-pool posting; there is no current vacancy.\""]:["No talent-pool or no-vacancy wording"] },
+    { id:"deny", name:"Deny list", rule:"Profile deny list: companies, titles, locations", result: ex?"not reached":"not listed", cite: ex?"":"0 of 6 deny entries matched",
+      evidence:["Deny list has 6 entries (3 companies, 2 titles, 1 location)","None matched this Listing"] },
+    { id:"ghost", name:"Ghost score", rule:"Additive Low / Medium / High; down-ranks, never drops", result: ex?"not reached":l.ghost,
+      cite: l.ghost==="High"?"first seen 94 days ago, reposted 3×":l.ghost==="Medium"?"existence unverified (LinkedIn-only)":"seen 6 days ago on employer ATS",
+      evidence: l.ghost==="High"?["First Sighting 2026-08-11 (94 days)","3 reposts under new IDs","Still on employer ATS in latest Discover run"]:l.ghost==="Medium"?["LinkedIn-only: no ATS posting matched","No salary stated (weak signal)"]:["First Sighting 2026-11-07","Present on employer board in latest Discover run"] },
+    { id:"spons", name:"Sponsorship (UK)", rule:"A-rated sponsor + Higher Skilled SOC + pay ≥ max(£41,700, going rate)", result: ex?"not reached":l.spons,
+      cite: l.spons==="unknown"?"employer not matched to register with high confidence":"A-rated · SOC 2136 · £68k ≥ £49.4k",
+      evidence: l.spons==="unknown"?["Register search: 2 near-matches below threshold","Result: unknown → badge, sorts by fit"]:["Register: matched by name + town, A-rated (Skilled Worker)","Role mapped to SOC 2020 code 2136 (Higher Skilled)","Base pay £68,000 vs going rate £49,400 and floor £41,700"] },
+    { id:"fit", name:"Fit score", rule:"0–100 · 80+ strong · 50–79 partial · <50 weak", result: ex?"not reached":String(l.fit),
+      cite: ex?"":l.fit>=80?"strong: 5 of 6 core skills evidenced":"partial: 3 of 6 core skills evidenced",
+      evidence:["Rules: location ✓ · seniority ✓ · target role ✓","LLM skills match cites Base resume bullets for each matched skill","Breakdown stored with the Listing; rescored only on request"] },
+  ];
+  if(l.state==="app"){
+    c.push({ id:"pick", name:"Approval: Shortlist pick", rule:"Checkpoint 1", result:"approved", cite:"picked by job seeker", evidence:["Reply \"pick a\" in the 11-10 run"] });
+    c.push({ id:"st", name:"Status", rule:"Event log", result:l.status, cite:(events[l.id]||[]).slice(-1).map(e=>e[2])[0]||"", evidence:(events[l.id]||[]).map(e=>`${e[0]} · ${e[1]} · ${e[2]}`) });
+  }
+  return c;
+}
+function tree(l){ // deterministic view of stored results; greyed = not reached
+  const cs = checks(l), q = s => String(s).replace(/"/g,"'");
+  let m = "flowchart TD\n  L[\"" + q(l.co) + "<br/>" + q(l.role) + "\"]\n", prev = "L";
+  cs.forEach(c => {
+    m += `  ${c.id}["<b>${q(c.name)}</b><br/><small>${q(c.rule)}</small><br/>→ ${q(c.result)}${c.cite?"<br/><i>"+q(c.cite)+"</i>":""}"]\n`;
+    m += `  ${prev} --> ${c.id}\n`; prev = c.id;
+    const cls = c.id==="st"?"out":c.id==="pick"?"human":c.result==="not reached"?"nr":c.result==="FAIL"?"bad":(c.result==="High"||c.result==="unknown"||c.result==="Medium")?"warn":"ok";
+    m += `  class ${c.id} ${cls}\n  click ${c.id} call showNode("${l.id}","${c.id}")\n`;
+  });
+  m += `  class L src\n`;
+  if(l.state==="shortlist") m += `  ${prev} --> SL([On the Shortlist])\n  class SL out\n`;
+  if(l.state==="excluded") m += `  X([Excluded · restorable])\n  ${cs.find(c=>c.result==="FAIL").id} --> X\n  class X outbad\n`;
+  // Colour key: green pass · amber warning (down-ranks or badges) · red fail (excludes) · grey dashed not reached · blue human Approval · purple outcome
+  return m +
+    "  classDef src fill:#eef1f6,stroke:#5b6b85,color:#1d2433\n" +
+    "  classDef ok fill:#dff3e7,stroke:#1f7a4d,stroke-width:2px,color:#123d27\n" +
+    "  classDef warn fill:#fff1cc,stroke:#b07d00,stroke-width:2px,color:#4a3500\n" +
+    "  classDef bad fill:#fbe0dc,stroke:#a33a2b,stroke-width:3px,color:#5a1a12\n" +
+    "  classDef nr fill:#f2f2f2,stroke:#b5b5b5,stroke-dasharray:4 3,color:#8a8a8a\n" +
+    "  classDef human fill:#dce7ff,stroke:#2b59c3,stroke-width:2px,color:#132a63\n" +
+    "  classDef out fill:#ece0fb,stroke:#6b3fb0,stroke-width:2px,color:#2e1656\n" +
+    "  classDef outbad fill:#a33a2b,stroke:#5a1a12,color:#fff";
+}
+const LEGEND = [["#dff3e7","#1f7a4d","Passed"],["#fff1cc","#b07d00","Warning: down-ranks or adds a badge"],["#fbe0dc","#a33a2b","Failed: excludes the Listing"],
+  ["#f2f2f2","#b5b5b5","Not reached"],["#dce7ff","#2b59c3","Your Approval"],["#ece0fb","#6b3fb0","Where it ended up"]]
+  .map(([f,s,t])=>`<span style="display:inline-flex;align-items:center;gap:5px;margin:0 12px 4px 0;font-size:12px"><span style="width:14px;height:14px;border-radius:3px;background:${f};border:2px solid ${s}"></span>${t}</span>`).join("");
+window.showNode = (lid, cid) => {
+  const l = listings.find(x=>x.id===lid), c = checks(l).find(x=>x.id===cid), el = document.getElementById("nodeinfo");
+  if(!el) return;
+  el.innerHTML = `<h2 style="margin-top:0">${esc(c.name)} → ${esc(c.result)}</h2><div class="sub">Rule: ${esc(c.rule)}</div>
+    <ul>${c.evidence.map(e=>`<li>${esc(e)}</li>`).join("")}</ul><div class="sub">Source: stored Screen results for ${esc(l.id)} · never written by the LLM</div>`;
+};
+
+// ---- Variants ----
+const V = {
+A: { name:"Action queue", render(){ return `
+  <h1>What needs you <span class="chip">${needs.length+1}</span></h1>
+  <div class="sub">Last Discover ${lastRun.discover} · Track ${lastRun.track}</div>
+  <div class="panel">
+    <div class="todo"><div class="kind">Shortlist pick</div><div class="body"><b>${shortlist.length} new Listings</b> ready to pick from.
+      <div style="margin-top:6px">${shortlist.map(l=>`<div>${fitHtml(l)} · ${l.co} — ${l.role} ${sponsChip(l)}${ghostChip(l)}</div>`).join("")}</div></div>
+      <div class="acts"><button class="btn primary">Pick…</button></div></div>
+    ${needs.map(l=>`<div class="todo"><div class="kind">${l.status==="Interview"?"Digest":l.status==="Apply paused"?"Apply paused":"Handover"}</div>
+      <div class="body"><b>${l.co}</b> — ${l.role}<div class="sub" style="margin:2px 0 0">${esc(l.needs)}</div></div>
+      <div class="acts"><button class="btn primary">${l.status==="Interview"?"Approve":"Open"}</button><button class="btn">Why?</button></div></div>`).join("")}
+    <div class="todo"><div class="kind">Source failed</div><div class="body">${lastRun.failed.join("<br>")}</div><div class="acts"><button class="btn">Retry</button></div></div>
+  </div>
+  <h2>Everything else</h2>
+  <div class="panel wrap"><table><tr><th>Company</th><th>Role</th><th>Status</th><th>Fit</th></tr>
+    ${apps.filter(l=>!l.needs).map(l=>`<tr><td>${l.co}</td><td>${l.role}</td><td>${l.status}</td><td>${fitHtml(l)}</td></tr>`).join("")}</table></div>
+  <details style="margin-top:12px"><summary>Excluded (${excluded.length})</summary>${excluded.map(l=>`<div style="padding:6px 0">${l.co} — ${esc(l.why)} <button class="btn">Restore</button></div>`).join("")}</details>`; } },
+
+B: { name:"Status board", render(){
+  const cols = [["Shortlist", shortlist.map(l=>({...l, status:"Shortlist"}))], ...ORDER.map(s=>[s, apps.filter(a=>a.status===s)])].filter(([s,arr])=>arr.length||["Picked","Submitted","Interview","Offer"].includes(s));
+  return `<h1>Pipeline</h1><div class="sub">Each column is a Status. Blue edge = needs you.</div>
+  <div class="board">${cols.map(([s,arr])=>`<div class="col"><h3><span>${s}</span><span>${arr.length}</span></h3>
+    ${arr.map(l=>`<div class="card ${l.needs?"needs":""}"><b>${l.co}</b><br>${l.role}<br><span class="sub">${l.loc}</span><div style="margin-top:4px">${fitHtml(l)} ${sponsChip(l)}${ghostChip(l)}</div>${l.needs?`<div style="margin-top:6px;font-size:12px">${esc(l.needs)}</div>`:""}</div>`).join("")}</div>`).join("")}</div>
+  <details style="margin-top:12px"><summary>Excluded (${excluded.length})</summary>${excluded.map(l=>`<div style="padding:6px 0">${l.co} — ${esc(l.why)}</div>`).join("")}</details>`; } },
+
+C: { name:"Listing explorer + Decision tree", render(){
+  const all=[...needs, ...shortlist, ...apps.filter(a=>!a.needs), ...excluded];
+  const sel = all.find(l=>l.id===(new URLSearchParams(location.search).get("listing"))) || all[0];
+  return `<h1>Listings</h1><div class="sub">Pick one to see why it's where it is.</div>
+  <div class="md"><div class="panel list">${all.map(l=>`<button class="${l===sel?"on":""}" data-listing="${l.id}">
+      <b>${l.co}</b> ${l.needs?'<span class="chip" style="background:var(--accent);color:#fff">needs you</span>':""}<br>
+      <span class="sub">${l.role} · ${l.state==="app"?l.status:l.state==="excluded"?"Excluded":"Shortlist"}</span></button>`).join("")}</div>
+    <div class="panel detail"><h1>${sel.co} — ${sel.role}</h1>
+      <div class="sub">${sel.loc} · ${sel.src} · fit ${fitHtml(sel)} ${sponsChip(sel)}${ghostChip(sel)}</div>
+      ${sel.needs?`<p><b>Needs you:</b> ${esc(sel.needs)}</p>`:""}
+      <h2>Decision tree <span class="sub" style="text-transform:none">· click a node for its evidence</span></h2>
+      <div style="margin-bottom:6px">${LEGEND}</div>
+      <pre class="mermaid">${tree(sel)}</pre>
+      <div id="nodeinfo" class="panel" style="padding:12px;margin-top:8px"><span class="sub">Click any check above to see the rule, the result and every piece of evidence behind it.</span></div>
+      <h2>Event log</h2><ul class="log">${(events[sel.id]||[["—","—","no Application yet"]]).map(e=>`<li><span class="sub">${e[0]} · ${e[1]}</span> ${esc(e[2])}</li>`).join("")}</ul>
+    </div></div>`; } },
+
+D: { name:"Terminal digest (no UI)", render(){
+  const pad=(s,n)=>String(s).padEnd(n).slice(0,n);
+  return `<h1>Terminal digest</h1><div class="sub">What <code>/job-butler</code> would print at the end of a run. No page at all.</div>
+  <div class="term"><span class="h">Job Butler · run finished 2026-11-13 08:05</span>
+<span class="d">Discover: 4 new Listings · 2 excluded · 1 source failed (Workday/Adatum)</span>
+<span class="d">Track: 1 change matched</span>
+
+<span class="y">NEEDS YOU (${needs.length+1})</span>
+  1. Shortlist pick — ${shortlist.length} Listings
+${shortlist.map((l,i)=>`       ${String.fromCharCode(97+i)}) ${pad(l.fit,3)} ${pad(l.co,16)} ${pad(l.role,26)}${l.spons==="unknown"?" [sponsorship ?]":""}${l.ghost==="High"?" [ghost: high]":""}`).join("\n")}
+${needs.map((l,i)=>`  ${i+2}. ${pad(l.co,16)} ${esc(l.needs)}`).join("\n")}
+
+<span class="h">PIPELINE</span>
+${apps.map(l=>`  ${pad(l.status,18)} ${pad(l.co,18)} ${l.role}`).join("\n")}
+
+<span class="r">EXCLUDED (${excluded.length})</span>  reply "show excluded" to see why
+<span class="d">Reply e.g. "why 2 · why a · pick a, b · approve 4 · show excluded · help"</span>
+<span id="termout"></span></div>
+  <div style="display:flex;gap:8px;margin-top:8px"><span class="term" style="padding:8px 10px">&gt;</span>
+    <input id="termin" placeholder="type a reply and press Enter (try: why 2)" style="flex:1;font:13px ui-monospace,Menlo,monospace;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)"></div>`; } },
+};
+
+// ---- Switcher (prototype-only chrome) ----
+const keys = Object.keys(V);
+const cur = () => { const v=(new URLSearchParams(location.search).get("variant")||"A").toUpperCase(); return keys.includes(v)?v:"A"; };
+function go(k){ const p=new URLSearchParams(location.search); p.set("variant",k); history.replaceState(null,"","?"+p); draw(); }
+function draw(){
+  const k=cur(); document.getElementById("app").innerHTML=V[k].render();
+  document.getElementById("label").textContent=`${k} (${V[k].name})`;
+  document.querySelectorAll("[data-listing]").forEach(b=>b.onclick=()=>{ const p=new URLSearchParams(location.search); p.set("listing",b.dataset.listing); history.replaceState(null,"","?"+p); draw(); });
+  if(window.mermaid){ try{ mermaid.initialize({startOnLoad:false, securityLevel:"loose", theme: matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"}); mermaid.run({querySelector:"pre.mermaid"}); }catch(e){} }
+  const ti=document.getElementById("termin"); if(ti){ ti.onkeydown=e=>{ if(e.key==="Enter"&&ti.value.trim()){ termReply(ti.value.trim()); ti.value=""; } }; }
+}
+// Terminal replies: the digest is a conversation, so drill-downs print text versions of the same stored data.
+function termTarget(tok){
+  tok=tok.trim().toLowerCase();
+  if(/^[a-z]$/.test(tok)) return shortlist[tok.charCodeAt(0)-97];
+  const n=parseInt(tok,10); if(n>=2) return needs[n-2];
+}
+function termText(l){
+  return `<span class="h">WHY: ${esc(l.co)} — ${esc(l.role)}</span>\n` + checks(l).map(c=>{
+    const col=c.result==="not reached"?"d":c.result==="FAIL"?"r":(["High","Medium","unknown"].includes(c.result))?"y":"h";
+    return `  <span class="${col}">${c.result==="not reached"?"·":c.result==="FAIL"?"✗":"✓"} ${esc(c.name.padEnd(22))} ${esc(c.result)}</span>\n      ${esc(c.rule)}\n      <span class="d">${c.evidence.map(esc).join("\n      ")}</span>`; }).join("\n") +
+    `\n  <span class="d">Full diagram: data/decision-trees/${esc(l.id.replace(":","-"))}.mmd</span>`;
+}
+function termReply(cmd){
+  const out=document.getElementById("termout"); let r;
+  const m=cmd.toLowerCase();
+  if(m==="help") r=`  why &lt;n|letter&gt;   explain a Listing check by check\n  pick a, b        pick from the Shortlist (Approval)\n  approve &lt;n&gt;      approve a digest change\n  show excluded    list excluded Listings and why\n  restore &lt;name&gt;   restore an excluded Listing`;
+  else if(m.startsWith("why ")){ const l=termTarget(m.slice(4)); r=l?termText(l):`<span class="r">  no item "${esc(m.slice(4))}"</span>`; }
+  else if(m.startsWith("pick ")){ const ls=m.slice(5).split(",").map(termTarget).filter(Boolean); r=ls.length?`<span class="h">  Approval recorded: picked ${ls.map(l=>esc(l.co)).join(", ")}.</span>\n  <span class="d">Tailor will run next for ${ls.length} Application${ls.length>1?"s":""}.</span>`:`<span class="r">  nothing matched</span>`; }
+  else if(m.startsWith("approve ")){ const l=termTarget(m.slice(8)); r=l?`<span class="h">  Approved: ${esc(l.co)} → ${esc(l.status)}.</span> <span class="d">Event log updated.</span>`:`<span class="r">  no item</span>`; }
+  else if(m==="show excluded") r=excluded.map(l=>`  <span class="r">✗</span> ${esc(l.co.padEnd(18))} ${esc(l.why)}`).join("\n")+`\n  <span class="d">restore &lt;name&gt; to put one back on the Shortlist (flagged)</span>`;
+  else if(m.startsWith("restore ")){ const l=excluded.find(x=>x.co.toLowerCase().startsWith(m.slice(8))); r=l?`<span class="y">  Override recorded: ${esc(l.co)} restored to the Shortlist, still flagged.</span>`:`<span class="r">  no excluded Listing matches</span>`; }
+  else r=`<span class="r">  unknown reply. Try "help".</span>`;
+  out.innerHTML += `\n<span class="d">&gt; ${esc(cmd)}</span>\n${r}\n`;
+  out.parentElement.scrollTop = out.parentElement.scrollHeight;
+}
+const step = d => go(keys[(keys.indexOf(cur())+d+keys.length)%keys.length]);
+document.getElementById("prev").onclick=()=>step(-1); document.getElementById("next").onclick=()=>step(1);
+addEventListener("keydown",e=>{ if(e.target.closest("input,textarea,[contenteditable]")) return; if(e.key==="ArrowLeft") step(-1); if(e.key==="ArrowRight") step(1); });
+draw();
+</script>
+</body>
+</html>
