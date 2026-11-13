@@ -17,7 +17,7 @@ import {
   tablesUnavailable,
   ukRegime,
 } from "./sponsorship-uk.ts";
-import { listRecords, type StoredRecord, withEditLock } from "./store.ts";
+import { type StoredRecord, withEditLock } from "./store.ts";
 import { isObject } from "./validate.ts";
 
 export interface Evidence {
@@ -70,7 +70,6 @@ const DEFAULT_REGIME = ukRegime.id;
 
 /** What `screen record` loads once per batch for the step (StepContext.sponsorship). */
 export interface SponsorshipContext {
-  employers: StoredRecord[];
   data: unknown;
 }
 
@@ -80,7 +79,7 @@ export async function loadSponsorshipContext(
 ): Promise<SponsorshipContext | undefined> {
   if (!isObject(profile.sponsorship) || profile.sponsorship.needed !== true) return undefined;
   await refreshTables(dataDir); // weekly; a failure keeps the last copy and marks it stale
-  return { employers: await listRecords(dataDir, "employer"), data: await readTables(dataDir) };
+  return { data: await readTables(dataDir) };
 }
 
 /** `sponsorship refresh`: download the GOV.UK tables when a week old and report freshness. */
@@ -187,7 +186,7 @@ function skipped(spec: CheckSpec): Check {
 export const sponsorshipStep: ScreenStep = {
   id: "sponsorship",
   checks: SPONSORSHIP_SPECS,
-  run({ listing, profile, sponsorship: shared }) {
+  run({ listing, profile, world, sponsorship: shared }) {
     const section = isObject(profile.sponsorship) ? profile.sponsorship : {};
     const [employerSpec, roleSpec, paySpec, wordingSpec, verdictSpec] = SPONSORSHIP_SPECS as [
       CheckSpec,
@@ -205,7 +204,7 @@ export const sponsorshipStep: ScreenStep = {
       throw new CoreError("UNKNOWN_REGIME", `There are no Sponsorship rules for "${id}".`);
     }
 
-    const employer = employerFor(listing, shared.employers);
+    const employer = employerFor(listing, world.employers);
     const employerEv = regime.employerEvidence(listing, employer);
     const { role, pay, stored } = regime.roleEvidence(listing, section, shared.data);
     const words = wordingEvidence(listing, regime.wordingLexicon);

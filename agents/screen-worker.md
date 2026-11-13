@@ -53,3 +53,7 @@ Reply with exactly one JSON object and nothing else, with one entry per Listing 
   ]
 }
 ```
+
+## Application limit (optional, per Listing)
+
+If a Listing's `description` states a limit on applications (for example "one application per 6 months" or "apply to at most 2 roles at a time"), add `application_limit` next to `skills_rating`: `{"count": 1, "window_months": 6, "scope": "same_role", "quote": "<the advert's words, copied exactly>"}`. Use `window_days` instead of `window_months` for a window in days. `scope` is `same_role` for a reapply cooldown on one role, `company` for a cap across the company. Without a quote there is no limit: leave `application_limit` out (or `null`). Never infer a limit the advert doesn't state.
