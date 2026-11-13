@@ -21,6 +21,7 @@ import { endRun, readRunLock, startRun } from "./lock.ts";
 import { httpGet } from "./net.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
 import { assertProfileComplete, checkProfile, putProfile, readProfile } from "./profile.ts";
+import { restoreListing, showExcluded } from "./restore.ts";
 import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
@@ -317,6 +318,23 @@ export const commands: Record<string, Command> = {
     usage: "screen why <letter|listing-id|application-id>",
     summary: "One Listing's Screen checks with rule, result and evidence, and its tree's path.",
     run: async ({ dataDir, args }) => ({ ...(await why(dataDir, args[0])) }),
+  },
+
+  "show excluded": {
+    usage: "show excluded",
+    summary: "The excluded Listings, each with the check that excluded it and the reasons.",
+    run: async ({ dataDir }) => ({ ...(await showExcluded(dataDir)) }),
+  },
+
+  restore: {
+    usage: "restore <name>",
+    summary:
+      "The job seeker's override of an exclusion: record it and put the Listing back at its " +
+      "fit position, flagged. A deny-listed Listing can't be restored.",
+    run: async ({ dataDir, args }) => ({
+      ...(await restoreListing(dataDir, args)),
+      ...(await digest(dataDir)),
+    }),
   },
 
   "application pick": {
