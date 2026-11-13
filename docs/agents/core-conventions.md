@@ -40,7 +40,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
 
 ## Data directory and pipeline store (ADR 0001)
 
-- Profile at `<data>/profile.yaml`, Preferences at `<data>/preferences.yaml`, resume copies in `<data>/sources/`. Pipeline records at `<data>/pipeline/<type>/<encodeURIComponent(id)>.json`. Types: `listing`, `application`, `employer`, `discover-run`, `sync`, `approval` (add new ones to `RECORD_TYPES` in `store.ts`). Standing grants live in `<data>/grants.json`; session marks in `<data>/sessions/`.
+- Profile at `<data>/profile.yaml`, Preferences at `<data>/preferences.yaml`, resume copies in `<data>/sources/`. Pipeline records at `<data>/pipeline/<type>/<encodeURIComponent(id)>.json`. Types: `listing`, `application`, `employer`, `discover-run`, `sync`, `approval` (add new ones to `RECORD_TYPES` in `store.ts`). Standing grants live in `<data>/grants.json`; session marks in `<data>/sessions/`. Decision trees in `<data>/decision-trees/<encodeURIComponent(listing id)>.mmd` (see "Decision tree"). `<data>/inbox/` holds files a skill writes with the Write tool to pass a worker's JSON to the core (`--input <file>`); the hook allows Write there, unlike `pipeline/`.
 - The store sets `schema_version` (1), `id`, `created_at` and `updated_at` (ISO 8601 UTC) on every record; callers pass only the record's own fields. Every other timestamp you store is ISO 8601 UTC from `timestamp()` too.
 - Write only through `withWriter(dataDir, command, fn)`: it runs the data-directory safety checks, takes the lock, clears temp files left by an interrupted write, and releases the lock. Put all of one command's writes in one `withWriter` call, and prefer one CLI call per batch over one call per record (each call re-runs the git and `gh` checks).
 - Any other file you write into the data directory (Preferences, grants, rendered pages) goes through `writeThenReplace` and, if it is pipeline state, inside `withWriter`; a file that must not change mid-run (Profile, Preferences) goes inside `withEditLock`.
@@ -100,6 +100,9 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 - A Stage skill lives at `skills/<stage>/SKILL.md`, user-invoked (`disable-model-invocation: true`), and the `/job-butler` skill routes its Stage name to it by reading that file. Its shape: `run start <stage>` → the Stage's core commands → report → `run end --run <run_id>` unless `joined` was true. Run `run end` on every exit after a successful `run start`. Relay `error.message` as written.
 - The skill owns all conversation and every pipeline write; each write is one core command per batch (`discover boards` writes a whole run in one `withWriter`).
 - A **worker subagent** (`agents/<stage>-worker.md`) does only the Stage's LLM judgments. It has no outward tools and no Bash, so it can neither write pipeline state nor fetch: give it `tools: Read` at most, and the cheapest `model` that fits (haiku for extraction and classification, sonnet for rating and tailoring). The round trip: a core command returns the material to judge as JSON → the skill dispatches the worker with that JSON in the prompt (the worker reads nothing else, so Profile data reaches it only when the judgment needs it) → the worker returns one JSON object → the skill passes it to the core with `--input -`, which validates it and writes. Store each judgment's fixture in `core/test/fixtures/judgments/`.
+- When the judgment JSON can carry free text (quotes from adverts, resume facts), the skill writes the worker's reply with the Write tool to a file under `<data>/inbox/` and passes `--input <file>`, rather than a heredoc: a backtick or `$(` in the text would make the Approval hook deny the Bash call.
+- One worker per Stage, shared by every judgment of that Stage: a later check that needs an LLM judgment adds its own section to the worker's per-Listing object and its instructions to the worker file (see "Screen check pipeline").
+- `agents/screen-worker.md` (#34) is the first worker: sonnet, `tools: Read`, one batch dispatch per Screen run.
 - Discover has no worker yet: reading boards needs no judgment. The first Discover judgment (#37's "same job?" confirmation or #38's LinkedIn matching) adds `agents/discover-worker.md` in this shape.
 
 ## Discover (set by #33)
@@ -125,6 +128,50 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 ### Discover run record (`pipeline/discover-run/<uuid>.json`)
 
 `started_at`, `finished_at`, `run_id` (the run lock's, or null), `sources: [{id, ats, company, status: "ok"|"failed"|"skipped", jobs, error: {code, message}|null}]`, `new_listings` and `gone_listings` (Listing IDs), `listings_seen`. The digest (#52) reports every source whose status isn't `ok`.
+
+## Screen (set by #34)
+
+The Screen skill's loop: `screen pending` → one `screen-worker` dispatch → Write the reply to `judgments_file` → `screen record --input <file>` → `screen digest` → replies (`screen why <letter>`, `pick`, `help`). None of these commands needs an Approval except `application pick`.
+
+- `screen pending`: Listings not gone, not picked, and either never screened or marked for rescore; each as `{id, company, title, location, description}`. Plus `profile` (`base_resume`, `targets` only: never identity), `judgment_keys` and `judgments_file`.
+- `screen record --input`: `{"judgments": [{"listing_id", "<judgment key>": ...}]}`. Validates every judgment first (`JUDGMENT_INVALID` lists the problems; nothing is written), refuses a Listing already screened (`ALREADY_SCREENED`) or picked (`ALREADY_PICKED`), then in one `withWriter`: runs the pipeline, stores `screen` and `decision_tree` on each Listing, and regenerates **every** screened Listing's tree (so a Listing Discover marked gone shows it). Returns `recorded` plus the digest.
+- `screen rescore <id>...|all`: only when the job seeker asks. Sets `screen.rescore_requested_at`, which puts the Listing back in `screen pending`; scores never change otherwise, Profile edits included.
+- `screen digest`: `shortlist: [{letter, id, company, title, location, fit, band, flags, badges}]`, `excluded`, `pending`, `text` (the terminal block) and `replies` (`[{reply, does}]`; later tickets add `approve <n>`, `show excluded`, `restore <name>`).
+- `screen why <letter|listing id|application id>`: `checks`, `decision_tree` (absolute path) and `text`: one line per Check `<mark> <name padded 22> <result>`, then its rule and evidence lines. Marks: ✓ pass, ! warn, ✗ fail, · not reached.
+
+### Screen check pipeline (`core/src/screen-check.ts`, `SCREEN_STEPS` in `screen.ts`)
+
+- `SCREEN_STEPS` runs in the spec's order on each Listing: scam gate, deny list (#39), ghost score (#39), Sponsorship (#41), **fit** (#34), Application limit (#42). Add a check by writing a `ScreenStep` in its own module and inserting it at its place in `SCREEN_STEPS`; `screen.ts`, the digest and the Decision tree need no change.
+- A `ScreenStep` has `id`, `checks` (a `CheckSpec` `{check: "<step>.<name>", name, rule}` per node, in order, used for "not reached"), an optional `judgment: {key, check}` (its section of each Listing's worker judgment and the validator, which pushes plain-words problems), and `run(ctx) → {checks, stored?}`. `ctx` has `listing`, `profile`, `judgment` (its section only) and `now`. `stored` is merged into `listing.screen` (fit stores `fit`; ghost should store `ghost`, and so on). A step that needs more inputs (Employers, Applications, the register) loads them into `StepContext` in `screenRecord`, once per batch.
+- A `Check` is `{check, name, rule, result, status, effect, citation, evidence[], label}`:
+  - `status`: `pass` | `warn` | `fail` | `not_reached`.
+  - `effect`: `exclude` (off the Shortlist; stops the pipeline, later checks become `not_reached`), `flag` (sorts below the fit order, Fit unchanged), `badge` (shown only), or `null` (recorded only, e.g. a failed Fit rule, which already caps the score).
+  - `label`: the Shortlist text for a flag or badge (e.g. `ghost: high`); defaults to `<name>: <result>`.
+- `listing.screen`: `{screened_at, run_id, outcome: "shortlist"|"excluded", excluded_by, checks, flags: [{check, label}], badges: [{check, label}], rescore_requested_at, fit, ...}`. Flags and badges are collected from Checks with that effect and status `warn` or `fail`.
+- **Shortlist** (derived when read, never stored separately): `outcome` is `shortlist`, not `gone`, no Application. **Ranking:** unflagged before flagged, then Fit score descending, then company, title, ID. Letters a…z, then aa, ab…. Overrides (#39 restore, #42 limit override) should record their own Check or Event so the tree shows an override node.
+
+### Fit score (`core/src/fit.ts`)
+
+- Rules from the Profile: **location** (contains one of `targets.locations` or `filters.allow.locations`, or remote/anywhere when `targets.remote`; on `filters.deny.locations` fails; none stated is unknown), **seniority** (title words mapped to the Profile's levels, e.g. senior/sr → senior, graduate/junior → junior; no word is unknown), **target roles** (every non-seniority word of one target role appears in the title; back-end/front-end/full-stack normalised).
+- Skills rating (judgment key `skills_rating`): `{summary, criteria: [{criterion, importance: core|nice, match: strong|partial|none, listing_quote, resume_evidence}]}`; `strong`/`partial` need `resume_evidence`.
+- Weights, fixed in v1: skills = Σ(importance × match) / Σ importance × 100 with core 2, nice 1, strong 1, partial ½, none 0. Rules = mean of pass 1, unknown ½, fail 0, × 100. Fit = round(0.8 × skills + 0.2 × rules); any failed rule caps it at 49. Bands: 80+ strong, 50–79 partial, <50 weak.
+- `screen.fit`: `{score, band, skills_score, rules_score (1 dp), capped, weights, rules: [{rule, result, evidence}], summary, criteria}`. Checks: `fit.location`, `fit.seniority`, `fit.target_roles`, `fit.skills`, `fit.score`; none excludes or flags.
+
+## Application record and Event log (set by #34)
+
+`pipeline/application/<uuid>.json`, written by `core/src/application.ts`:
+
+- `origin` (`picked`; `external` from #50), `listing_id` (null for External), `company`, `title`, `status`, `event_log`, `gmail_threads: []`, `answers: []`, `fill_plan: null`, `tailor: null`, `decision_tree` (the Listing's tree path). The Listing gets `application_id`.
+- Status values (`STATUSES`, snake_case keys with display names): `picked`, `tailored`, `ready_to_apply`, `paused`, `handover`, `submitted`, `interview`, `rejected`, `offer`, `withdrawn`, `no_response`.
+- Event log entry (append only): `{at, stage, from, to, reason, approval}`; `approval` is `{id, checkpoint, approved_at, action}` for a Checkpoint change, else null.
+- `application pick <listing-id>...`: one action covers all the IDs (`application pick <id-1> <id-2>`), one `withWriter`. It refuses `APPROVAL_MISSING` unless `approvalUsedFor` finds the spent Approval for that exact action (so it never runs outside the hook), and all-or-nothing `NOT_FOUND`, `NOT_ON_SHORTLIST` (unscreened, excluded or gone) or `ALREADY_PICKED`. Each new entry cites the Approval. Later Checkpoint commands (`application status`, `application submitted`) follow the same shape: check `approvalUsedFor`, append an entry, rewrite the tree in the same `withWriter`.
+
+## Decision tree (set by #34, `core/src/decision-tree.ts`)
+
+- One `.mmd` per screened Listing at `decision-trees/<encodeURIComponent(id)>.mmd`, path stored as `decision_tree` on the Listing and Application. Generated only from the stored Listing and Application; `writeTrees(dataDir, listings, applications)` rewrites each file in full. Call it inside the same `withWriter` as any change to a Listing's `screen`, `gone` or Application (Discover doesn't call it yet; `screen record` regenerates all trees, so gone shows at the next Screen). #53 deletes the file with the Listing.
+- `flowchart TD`: root `L` (company, title, location; class `src`) → one node per Check in order, id `c_<check with dots as _>`, label `<b>name</b><br/><small>rule</small><br/>→ result<br/><i>citation</i>`. Classes: pass `ok`; not reached `nr` (dashed edges after the cut-off); fail with effect `exclude` `bad`, other fail and warn `warn`. An excluding Check links `-->|excluded| X(["Excluded · restorable"]):::outbad`. End node: `SL(["On the Shortlist · Fit n band"]):::out`, or `GONE([...])` when gone.
+- After the pick: `SL(["Shortlisted · Fit …"]):::ok` → one node `e<n>` per Event log entry (`<from> → <to>`, stage and time, reason, Approval citation; class `human` with an Approval, else `ok`) → `ST(["Status: <label>"]):::out`.
+- Text is escaped with Mermaid entity codes (`#quot;`, `#lt;`, `#gt;`) and cut to 140 characters. The `classDef` lines are the colour key shared with the terminal and the pipeline view (#43).
 
 ## Network
 
