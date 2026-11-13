@@ -1,0 +1,30 @@
+{
+  "messages": [
+    {
+      "message_id": "m-reject-1",
+      "thread_id": "t-acme-1",
+      "from": "Acme Recruiting <jobs@acme.example>",
+      "subject": "Your application to Senior Backend Engineer",
+      "received_at": "2026-01-14T10:00:00.000Z",
+      "classification": "rejection",
+      "ats": { "job_url": "https://job-boards.greenhouse.io/acme/jobs/101" }
+    },
+    {
+      "message_id": "m-invite-2",
+      "thread_id": "t-beta-2",
+      "from": "no-reply@us.greenhouse-mail.io",
+      "subject": "Interview with Beta",
+      "received_at": "2026-01-14T11:00:00.000Z",
+      "classification": "interview_invite",
+      "ats": { "board_slug": "beta", "job_id": "202" }
+    },
+    {
+      "message_id": "m-other-3",
+      "thread_id": "t-misc-3",
+      "from": "newsletter@jobs.example",
+      "subject": "Ten jobs you may like",
+      "received_at": "2026-01-14T12:00:00.000Z",
+      "classification": "other_job_mail"
+    }
+  ]
+}
