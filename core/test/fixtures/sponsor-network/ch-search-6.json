@@ -1,0 +1,17 @@
+{
+  "kind": "search#companies",
+  "total_results": 1,
+  "items": [
+    {
+      "title": "BRIGHTSIDE SOFTWARE LTD",
+      "company_number": "05550001",
+      "company_status": "active",
+      "company_type": "ltd",
+      "address": {
+        "locality": "Manchester",
+        "postal_code": "X1 1XX"
+      },
+      "address_snippet": "1 High Street, Manchester"
+    }
+  ]
+}
