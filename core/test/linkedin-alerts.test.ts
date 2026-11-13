@@ -22,7 +22,10 @@ const alerts = () => JSON.parse(readFileSync(judgment("linkedin-alerts"), "utf8"
 async function setUp(dataDir: string): Promise<void> {
   const profile = JSON.parse(readFileSync(judgment("setup-profile"), "utf8"));
   profile.filters.target_companies = [GREENHOUSE];
-  assert.equal((await runCli(["profile", "put", "--input", "-"], { dataDir, input: profile })).code, 0);
+  assert.equal(
+    (await runCli(["profile", "put", "--input", "-"], { dataDir, input: profile })).code,
+    0,
+  );
   assert.equal((await runCli(["preferences", "init"], { dataDir })).code, 0);
 }
 
@@ -63,7 +66,10 @@ test("each job in an alert email becomes a LinkedIn Listing with intake alert, m
   ]);
   assert.deepEqual(r.json.new_companies, ["Northwind Traders", "Contoso Ltd"]);
   assert.deepEqual(
-    (r.json.linkedin_match as Rec[]).map((q) => [q.linkedin.id, q.candidates.map((c: Rec) => c.id)]),
+    (r.json.linkedin_match as Rec[]).map((q) => [
+      q.linkedin.id,
+      q.candidates.map((c: Rec) => c.id),
+    ]),
     [
       [EAE_LINKEDIN, [EAE]],
       ["linkedin:4034567890", ["greenhouse:greenhouse:8227655"]],
@@ -88,7 +94,13 @@ test("the worker's match answers pair an alert Listing with the ATS posting", as
   const r = await record(dataDir);
 
   const confirmed = await runCli(
-    ["linkedin", "confirm", (r.json.discover_run as Rec).id, "--input", judgment("linkedin-match-confirmed")],
+    [
+      "linkedin",
+      "confirm",
+      (r.json.discover_run as Rec).id,
+      "--input",
+      judgment("linkedin-match-confirmed"),
+    ],
     { dataDir, env: { JOB_BUTLER_NOW: NOW } },
   );
 
@@ -153,7 +165,10 @@ test("the alert window starts 30 days back, then a day before the last alert rea
   const first = await runCli(["linkedin", "alerts", "window"], { dataDir, env });
   assert.equal(first.code, 0, first.stdout);
   assert.equal(first.json.after, "2026/10/14");
-  assert.match(first.json.query as string, /^after:2026\/10\/14 from:jobalerts-noreply@linkedin\.com$/);
+  assert.match(
+    first.json.query as string,
+    /^after:2026\/10\/14 from:jobalerts-noreply@linkedin\.com$/,
+  );
   assert.deepEqual(first.json.processed_ids, []);
 
   await record(dataDir);
@@ -182,12 +197,12 @@ test("a malformed worker reply or a non-LinkedIn link refuses and records nothin
   await setUp(dataDir);
 
   const noJobs = await record(dataDir, { alerts: [{ message_id: "m-1" }] });
-  assert.equal(noJobs.json.error.code, "ALERT_INVALID");
+  assert.equal((noJobs.json.error as Rec).code, "ALERT_INVALID");
 
   const bad = alerts();
   bad.alerts[1].jobs[0].url = "https://example.com/jobs/view/1";
   const notLinkedIn = await record(dataDir, bad);
-  assert.equal(notLinkedIn.json.error.code, "NOT_A_LINKEDIN_URL");
+  assert.equal((notLinkedIn.json.error as Rec).code, "NOT_A_LINKEDIN_URL");
 
   assert.equal((await listings(dataDir)).size, 0);
   assert.deepEqual((await runCli(["record", "list", "sync"], { dataDir })).json.records, []);

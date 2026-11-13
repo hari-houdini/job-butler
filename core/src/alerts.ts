@@ -7,10 +7,9 @@
 //   linkedin alerts window   -> the Gmail query to read and the IDs already processed
 //   linkedin alerts record   -> dedupe, add the jobs as Listings, record the messages
 // See docs/agents/core-conventions.md, "LinkedIn job-alert emails (set by #51)".
-import { join } from "node:path";
-import { addLinkedInJobs, type LinkedInJob, linkedInIdentity } from "./linkedin.ts";
 import { now, timestamp } from "./env.ts";
 import { CoreError } from "./errors.ts";
+import { addLinkedInJobs, type LinkedInJob, linkedInIdentity } from "./linkedin.ts";
 import { withWriter } from "./store.ts";
 import {
   CONNECTOR,
@@ -56,7 +55,7 @@ function parseAlerts(input: unknown): Alert[] {
   if (!Array.isArray(list)) {
     throw new CoreError(
       "ALERT_INVALID",
-      'The alert worker\'s reply isn\'t {"alerts": [...]}, so nothing was recorded. Run the worker again.',
+      "The alert worker's reply isn't {\"alerts\": [...]}, so nothing was recorded. Run the worker again.",
     );
   }
   const problems: Problems = [];
@@ -96,10 +95,7 @@ function parseAlerts(input: unknown): Alert[] {
 export async function recordAlerts(dataDir: string, input: unknown) {
   const alerts = parseAlerts(input);
   const sync = await readSync(dataDir);
-  const seen = new Set([
-    ...(sync?.processed_ids ?? []),
-    ...(sync?.dismissed_ids ?? []),
-  ]);
+  const seen = new Set([...(sync?.processed_ids ?? []), ...(sync?.dismissed_ids ?? [])]);
   const fresh: Alert[] = [];
   for (const a of alerts) {
     if (seen.has(a.message_id)) continue;
