@@ -352,6 +352,15 @@ Detected by: a name pattern (recruitment, recruiter, resourcing, staffing, talen
 - **Event log `message`:** `{id, thread_id, from, subject, received_at, classification, matched_by}`, only on entries from Track.
 - **Decision tree:** each Event log entry with a `message` gets an outcome node `e<n>m` (class `out`, linked `e<n> -.- e<n>m`) citing the classification, subject, sender, time, message ID and the ladder step that matched.
 
+## LinkedIn job-alert emails (set by #51)
+
+`core/src/alerts.ts`; worker `agents/alert-worker.md` (`model: haiku`, tools exactly the three read-only Gmail tools, the Track worker's allowlist); route in `skills/discover/SKILL.md` ("Taking in LinkedIn alert emails"), also offered from Track as the reply `alerts`.
+
+- **Commands:** `linkedin alerts window` (`query` = `after:<date> from:jobalerts-noreply@linkedin.com`, `processed_ids`) and `linkedin alerts record --input {"alerts": [{message_id, thread_id, received_at, from?, subject?, jobs: [{company, title, location|null, url|null}]}]}`. Refused as `ALERT_INVALID` (or `NOT_A_LINKEDIN_URL` for a job link that isn't LinkedIn's), writing nothing.
+- **Intake:** each new alert's jobs go through `addLinkedInJobs` with `intake: "alert"` and an empty `description`, so alert and pasted Listings share one shape and the same match and `linkedin confirm` flow; the output is `linkedin add`'s plus `alerts_new` and `alerts_skipped`. One job in several alerts is one job (the first copy is used). Unmatched stays LinkedIn-only, `existence_unverified`.
+- **Sync record:** no second dedupe store. Alert message IDs join the Gmail Sync record's `processed_ids`, and Track skips them (and `track-worker` leaves LinkedIn alert mail alone). Messages are marked processed only after the Listings are written, so a refused intake leaves them unread. The record gains `alerts_synced_at` for the alert window (30 days back the first time, then a day before it); Track's `last_synced_at` is never touched, so reading alerts can't hide mail from Track.
+- **Fixture:** `fixtures/judgments/linkedin-alerts.json` is the worker's reply for two recorded alert emails.
+
 ## Tailor (set by #44)
 
 `/job-butler:tailor` (`skills/tailor/SKILL.md`) runs one `tailor-worker` (`agents/tailor-worker.md`, `model: sonnet`, `tools: Read`) per Picked Application, `batch_size` (3) in parallel. Commands (`core/src/tailor.ts`), none needs an Approval; editing is not a Checkpoint:

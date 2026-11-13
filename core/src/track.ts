@@ -136,6 +136,8 @@ export interface SyncFields {
   proposals: Proposal[];
   next_n: number;
   unmatched: Unmatched[];
+  /** When the LinkedIn alert reader last ran (#51); Track's `last_synced_at` is not touched. */
+  alerts_synced_at?: string | null;
 }
 
 export type SyncRecord = StoredRecord & SyncFields;
@@ -150,11 +152,11 @@ const EMPTY_SYNC = {
   unmatched: [] as Unmatched[],
 };
 
-async function readSync(dataDir: string): Promise<SyncRecord | undefined> {
+export async function readSync(dataDir: string): Promise<SyncRecord | undefined> {
   return (await getRecord(dataDir, "sync", CONNECTOR)) as SyncRecord | undefined;
 }
 
-function syncFields(s: SyncRecord | undefined): SyncFields {
+export function syncFields(s: SyncRecord | undefined): SyncFields {
   const {
     schema_version: _v,
     id: _i,
@@ -165,9 +167,9 @@ function syncFields(s: SyncRecord | undefined): SyncFields {
   return rest as SyncFields;
 }
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
-function gmailDate(ms: number): string {
+export function gmailDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10).replaceAll("-", "/");
 }
 

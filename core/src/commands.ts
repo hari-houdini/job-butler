@@ -1,4 +1,6 @@
 // The command registry. Each later ticket adds its commands here, implemented in its own module.
+
+import { alertsWindow, recordAlerts } from "./alerts.ts";
 import { pickListings } from "./application.ts";
 import {
   addGrant,
@@ -470,6 +472,22 @@ export const commands: Record<string, Command> = {
       "Take pasted (or alert) LinkedIn jobs in as Listings, read their Target company's board " +
       'for the same title, and return the "LinkedIn match" questions for the discover-worker.',
     run: async (ctx) => ({ ...(await addLinkedInJobs(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "linkedin alerts window": {
+    usage: "linkedin alerts window",
+    summary:
+      "The Gmail query the alert worker reads for LinkedIn job-alert emails, and the IDs already processed.",
+    run: async ({ dataDir }) => ({ ...(await alertsWindow(dataDir)) }),
+  },
+
+  "linkedin alerts record": {
+    usage:
+      'linkedin alerts record --input {"alerts": [{message_id, thread_id, received_at, jobs}]}',
+    summary:
+      "Take the alert worker's jobs in as LinkedIn Listings (intake alert) and record the " +
+      "alert messages in the Sync record so they are never read twice. Returns what `linkedin add` does.",
+    run: async (ctx) => ({ ...(await recordAlerts(ctx.dataDir, await ctx.readInput())) }),
   },
 
   "linkedin match": {
