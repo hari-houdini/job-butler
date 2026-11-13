@@ -1,0 +1,17 @@
+{
+  "kind": "search#companies",
+  "total_results": 1,
+  "items": [
+    {
+      "title": "MERIDIAN PEOPLE LIMITED",
+      "company_number": "07654321",
+      "company_status": "active",
+      "company_type": "ltd",
+      "address": {
+        "locality": "London",
+        "postal_code": "X1 1XX"
+      },
+      "address_snippet": "1 High Street, London"
+    }
+  ]
+}
