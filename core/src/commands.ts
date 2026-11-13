@@ -21,10 +21,21 @@ import { endRun, readRunLock, startRun } from "./lock.ts";
 import { httpGet } from "./net.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
 import { assertProfileComplete, checkProfile, putProfile, readProfile } from "./profile.ts";
+import { restoreListing, showExcluded } from "./restore.ts";
 import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
+import { tailorPending, tailorRecord } from "./tailor.ts";
+import {
+  approveStatus,
+  trackDigest,
+  trackDismiss,
+  trackPropose,
+  trackRecord,
+  trackWindow,
+} from "./track.ts";
+import { openView, regenerateView } from "./view.ts";
 
 export const commands: Record<string, Command> = {
   help: {
@@ -285,10 +296,45 @@ export const commands: Record<string, Command> = {
     run: async ({ dataDir }) => ({ ...(await digest(dataDir)) }),
   },
 
+  "tailor pending": {
+    usage: "tailor pending [<application-id>...]",
+    summary:
+      "The Applications to tailor (Picked, or the ones named, for an edit) with the advert and " +
+      "numbered Base resume facts for the tailor worker, never identity details.",
+    run: async ({ dataDir, args }) => ({ ...(await tailorPending(dataDir, args)) }),
+  },
+
+  "tailor record": {
+    usage: "tailor record <application-id> --input <file>|- (the tailor worker's JSON)",
+    summary:
+      "Check the tailor worker's resume against the Base resume, render Markdown, DOCX and PDF " +
+      "into the Application's folder, and mark it Tailored. Run again with an edit to re-render.",
+    run: async (ctx) => ({
+      ...(await tailorRecord(ctx.dataDir, ctx.args[0], await ctx.readInput())),
+    }),
+  },
+
   "screen why": {
     usage: "screen why <letter|listing-id|application-id>",
     summary: "One Listing's Screen checks with rule, result and evidence, and its tree's path.",
     run: async ({ dataDir, args }) => ({ ...(await why(dataDir, args[0])) }),
+  },
+
+  "show excluded": {
+    usage: "show excluded",
+    summary: "The excluded Listings, each with the check that excluded it and the reasons.",
+    run: async ({ dataDir }) => ({ ...(await showExcluded(dataDir)) }),
+  },
+
+  restore: {
+    usage: "restore <name>",
+    summary:
+      "The job seeker's override of an exclusion: record it and put the Listing back at its " +
+      "fit position, flagged. A deny-listed Listing can't be restored.",
+    run: async ({ dataDir, args }) => ({
+      ...(await restoreListing(dataDir, args)),
+      ...(await digest(dataDir)),
+    }),
   },
 
   "application pick": {
@@ -302,6 +348,50 @@ export const commands: Record<string, Command> = {
         overrideLimit: (flags["override-limit"] ?? "").split(",").filter((x) => x !== ""),
       })),
     }),
+  },
+
+  "application status": {
+    usage: "application status <application-id> <status> <n>",
+    summary:
+      "Digest-status Checkpoint: apply Track's proposal <n>. Runs only under an Approval " +
+      "recorded with `approval record digest-status` for this exact command.",
+    run: async ({ dataDir, args }) => ({ ...(await approveStatus(dataDir, args)) }),
+  },
+
+  "track window": {
+    usage: "track window",
+    summary: "The Gmail date window the track worker reads, from the Sync record.",
+    run: async ({ dataDir }) => ({ ...(await trackWindow(dataDir)) }),
+  },
+
+  "track record": {
+    usage: 'track record --input {"messages": [...]}',
+    summary:
+      "Record the track worker's classifications: dedupe against the Sync record, match each " +
+      "message to an Application, and propose Status changes (nothing changes until approved).",
+    async run(ctx) {
+      return { ...(await trackRecord(ctx.dataDir, await ctx.readInput())) };
+    },
+  },
+
+  "track propose": {
+    usage: 'track propose <application-id> <withdrawn|no_response> --input {"reason": "..."}',
+    summary: "Propose a Status change that doesn't come from mail (Withdrawn, No response).",
+    async run(ctx) {
+      return { ...(await trackPropose(ctx.dataDir, ctx.args, await ctx.readInput())) };
+    },
+  },
+
+  "track digest": {
+    usage: "track digest",
+    summary: "The numbered Status-change proposals waiting for the job seeker's approval.",
+    run: async ({ dataDir }) => ({ ...(await trackDigest(dataDir)) }),
+  },
+
+  "track dismiss": {
+    usage: "track dismiss <n>...",
+    summary: "Drop proposals; their messages are remembered and not raised again.",
+    run: async ({ dataDir, args }) => ({ ...(await trackDismiss(dataDir, args)) }),
   },
 
   "discover confirm": {
@@ -366,6 +456,25 @@ export const commands: Record<string, Command> = {
       "Destructive, needs a grant: remove Listings that never became Applications 90 days " +
       "after their latest Sighting, with their Decision trees.",
     run: async ({ dataDir }) => ({ ...(await prune(dataDir)) }),
+  },
+
+  "view build": {
+    usage: "view build",
+    summary: "Regenerate the local pipeline page (<data>/view/index.html) without opening it.",
+    run: async ({ dataDir }) => {
+      await ensureSafeDataDir(dataDir);
+      return { path: await regenerateView(dataDir) };
+    },
+  },
+
+  view: {
+    usage: "view",
+    summary: "Regenerate the local pipeline page and open it in the browser. Changes no state.",
+    run: async ({ dataDir }) => {
+      await ensureSafeDataDir(dataDir);
+      const path = await regenerateView(dataDir);
+      return { path, opened: await openView(path) };
+    },
   },
 
   "retention preview": {

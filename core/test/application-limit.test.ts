@@ -154,10 +154,25 @@ test("the default cooldown applies when there is no note and no advert limit", a
   assert.match(backend?.flags[0] ?? "", /would be your 2nd of 1 at Acme/);
   assert.match(backend?.flags[0] ?? "", /6 months/);
   assert.match(backend?.flags[0] ?? "", /default/);
-  // A different role at Acme is not the same role: it uses the last slot, badge only.
+  // A different role at Acme is not the same role: nothing to flag.
   const platform = items.find((i) => i.id === PLATFORM);
   assert.deepEqual(platform?.flags, []);
-  assert.match(platform?.badges[0] ?? "", /last slot/);
+  assert.deepEqual(platform?.badges, []);
+});
+
+test("a Listing that would use the last slot of a multi-slot limit gets a badge only", async (t) => {
+  const dataDir = tempDir(t);
+  await setUp(dataDir, LISTINGS({ employer: "emp-acme" }));
+  await noteOn(dataDir, { count: 2, window_days: 30, scope: "company" });
+  await application(dataDir, { status: "submitted", employer: "emp-acme", title: "Other" }, [
+    entry("picked", "2026-01-05T09:00:00.000Z"),
+  ]);
+  await screen(dataDir);
+  const items = await shortlist(dataDir);
+  for (const i of items) {
+    assert.deepEqual(i.flags, []);
+    assert.match(i.badges[0] ?? "", /uses your last slot at Acme in 30 days \(your note\)/);
+  }
 });
 
 test("the advert's limit, with its quote, beats the default", async (t) => {

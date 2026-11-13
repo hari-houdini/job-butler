@@ -44,7 +44,7 @@ function checkClass(c: Check): string {
   return "warn";
 }
 
-function nodeId(check: string): string {
+export function nodeId(check: string): string {
   return `c_${check.replace(/[^A-Za-z0-9]/g, "_")}`;
 }
 
@@ -113,6 +113,15 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
         `${esc(e.reason)}<br/><i>${esc(cite)}</i>"]:::${e.approval ? "human" : "ok"}`,
     );
     out.push(`  ${prev} --> ${id}`);
+    if (e.message) {
+      const m = e.message;
+      out.push(
+        `  ${id}m["<b>Outcome: ${esc(m.classification.replace(/_/g, " "))}</b><br/>` +
+          `${esc(m.subject)}<br/><small>from ${esc(m.from)} · ${esc(m.received_at)}</small><br/>` +
+          `<i>Message ${esc(m.id)} · matched by ${esc(m.matched_by)}</i>"]:::out`,
+        `  ${id} -.- ${id}m`,
+      );
+    }
     prev = id;
   });
   out.push(`  ${prev} --> ST(["Status: ${esc(statusLabel(String(application.status)))}"]):::out`);
@@ -127,6 +136,7 @@ interface Override {
   into?: string;
   /** application_limit (#42): the limit label the job seeker picked past. */
   label?: string;
+  check?: string;
 }
 
 /**
@@ -138,6 +148,8 @@ function overrideNodes(listing: StoredRecord): string[] {
   const overrides = Array.isArray(listing.overrides) ? (listing.overrides as Override[]) : [];
   return overrides.map((o) => {
     let what = `${o.kind}`;
+    if (o.kind === "restore")
+      what = `Restored from exclusion by ${o.check ?? "a check"}: back at its fit position, still flagged`;
     if (o.kind === "split" && o.into)
       what = `Split off ${o.into}: a different job, never merged again`;
     else if (o.kind === "application_limit")

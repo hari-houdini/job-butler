@@ -42,3 +42,13 @@ export function sessionId(flag: string | undefined): string | undefined {
 export function fault(name: string): boolean {
   return process.env.JOB_BUTLER_FAULT === name;
 }
+
+/** The program that opens a file in the browser: JOB_BUTLER_OPENER (tests), else the platform's. */
+export function openerCommand(): string {
+  if (process.env.JOB_BUTLER_OPENER) return process.env.JOB_BUTLER_OPENER;
+  return process.platform === "darwin"
+    ? "open"
+    : process.platform === "win32"
+      ? "explorer"
+      : "xdg-open";
+}

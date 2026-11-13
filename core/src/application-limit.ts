@@ -246,8 +246,12 @@ export function evaluateLimit(
   const byId = new Map(world.listings.map((l) => [l.id, l]));
   const counted = countApplications(listing, limit, world.applications, byId, now);
   const existing = counted.length;
-  const status =
-    existing + 1 > limit.count ? "over" : existing + 1 === limit.count ? "last_slot" : "pass";
+  const status: LimitEvaluation["status"] =
+    existing + 1 > limit.count
+      ? "over"
+      : existing + 1 === limit.count && limit.count > 1
+        ? "last_slot" // a one-application limit would badge every Listing, so it stays quiet
+        : "pass";
   const where = `at ${listing.company} in ${windowText(limit)}${limit.scope === "same_role" ? " for the same role" : ""}`;
   const label =
     status === "over"
