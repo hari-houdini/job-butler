@@ -26,15 +26,9 @@ import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
 
-<<<<<<< HEAD
-
 import { tailorPending, tailorRecord } from "./tailor.ts";
 
-=======
-
 import { openView, regenerateView } from "./view.ts";
-
->>>>>>> spec/job-butler-v1
 
 export const commands: Record<string, Command> = {
   help: {
