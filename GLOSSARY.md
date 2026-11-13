@@ -29,8 +29,12 @@ The ranked Listings Screen puts in front of the job seeker; picking one from it 
 _Avoid_: Recommendations, picks
 
 **Application**:
-The job seeker's pursuit of one Listing, from shortlist through outcome; the unit the pipeline tracks.
+The job seeker's pursuit of one Listing, from shortlist through outcome, or of a job applied to outside Job Butler; the unit the pipeline tracks.
 _Avoid_: Job, lead, opportunity
+
+**External application**:
+An Application the job seeker made outside Job Butler, found in their mail and tracked at their request. It has no Listing and none of Screen, Tailor or Apply: only a Status and its Event log.
+_Avoid_: Manual application, outside application, untracked application
 
 **Target company**:
 A company whose job board Discover searches, kept on a list in the Profile. Unlike the company allow list, it decides where Discover looks, not which Listings Screen keeps.
@@ -51,8 +55,12 @@ _Avoid_: Visa support
 ### The job seeker
 
 **Profile**:
-The job seeker's standing record: base resume, target roles, preferences, Sponsorship needs, and allow/deny lists. It must exist before any Stage runs.
-_Avoid_: Settings, preferences, user config
+The job seeker's standing record: base resume, target roles, Sponsorship needs, and allow/deny lists. It describes the job seeker and the job they want; how Job Butler runs belongs to Preferences. It must exist before any Stage runs.
+_Avoid_: Settings, user config
+
+**Preferences**:
+How Job Butler runs for this job seeker, such as when it runs on its own, whether it tracks External applications, and how far back it reads mail. Created at setup and changed only while no run is in progress.
+_Avoid_: Settings, config, options
 
 **Base resume**:
 The job seeker's complete, reviewed record of experience from which every tailored resume is drawn.
