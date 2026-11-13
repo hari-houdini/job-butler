@@ -1,0 +1,17 @@
+{
+  "kind": "search#companies",
+  "total_results": 1,
+  "items": [
+    {
+      "title": "ORBITAL DYNAMICS LIMITED",
+      "company_number": "02345678",
+      "company_status": "active",
+      "company_type": "ltd",
+      "address": {
+        "locality": "Cambridge",
+        "postal_code": "X1 1XX"
+      },
+      "address_snippet": "1 High Street, Cambridge"
+    }
+  ]
+}

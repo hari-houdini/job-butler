@@ -13,6 +13,14 @@ import { detectBoard } from "./boards/detect.ts";
 import type { Command } from "./cli.ts";
 import { ensureSafeDataDir } from "./data-dir.ts";
 import { confirmSameJob, discoverBoards, splitMerged } from "./discover.ts";
+import {
+  confirmEmployer,
+  correctEmployer,
+  matchEmployer,
+  nameEndClient,
+  sponsorRefresh,
+  sponsorStatus,
+} from "./employer.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
@@ -25,6 +33,12 @@ import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
+
+function needId(args: string[]): string {
+  const [id] = args;
+  if (id === undefined) throw usageError("<id> is required");
+  return id;
+}
 
 export const commands: Record<string, Command> = {
   help: {
@@ -255,6 +269,49 @@ export const commands: Record<string, Command> = {
   },
 
   // Screen (docs/agents/core-conventions.md, "Screen").
+  "sponsor refresh": {
+    usage: "sponsor refresh",
+    summary: "Download the UK sponsor register (at most once a day) and re-check cached Employers.",
+    run: async ({ dataDir }) => ({ ...(await sponsorRefresh(dataDir)) }),
+  },
+
+  "sponsor status": {
+    usage: "sponsor status",
+    summary: "Say how fresh the local sponsor register copy is.",
+    run: async ({ dataDir }) => ({ ...(await sponsorStatus(dataDir)) }),
+  },
+
+  "employer match": {
+    usage:
+      'employer match --input <file>|- ({"company", "town"?, "description"?, "end_client"?, "judgment"?: {"choice"}})',
+    summary:
+      "Match a Listing's employer to the sponsor register and cache it as an Employer record.",
+    run: async (ctx) => ({ ...(await matchEmployer(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "employer confirm": {
+    usage: "employer confirm <id>",
+    summary: "Confirm an Employer's match and pin it.",
+    run: async ({ dataDir, args }) => ({ ...(await confirmEmployer(dataDir, needId(args))) }),
+  },
+
+  "employer correct": {
+    usage:
+      'employer correct <id> --input <file>|- ({"organisation_name", "town"?} or {"none": true})',
+    summary: "Correct an Employer's match to a register entry, or to none, and pin it.",
+    run: async (ctx) => ({
+      ...(await correctEmployer(ctx.dataDir, needId(ctx.args), await ctx.readInput())),
+    }),
+  },
+
+  "employer end-client": {
+    usage: 'employer end-client <id> --input <file>|- ({"end_client"})',
+    summary: "Name an agency Listing's end client and match it again.",
+    run: async (ctx) => ({
+      ...(await nameEndClient(ctx.dataDir, needId(ctx.args), await ctx.readInput())),
+    }),
+  },
+
   "screen pending": {
     usage: "screen pending",
     summary:
