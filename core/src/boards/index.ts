@@ -1,10 +1,14 @@
 // The board readers Discover knows. A Target company whose ATS has no reader yet is
 // recorded on the Discover run as a skipped source, never silently ignored.
+import { ashby } from "./ashby.ts";
 import { greenhouse } from "./greenhouse.ts";
+import { lever } from "./lever.ts";
 import type { Ats, Board, BoardReader } from "./reader.ts";
 
 export const BOARD_READERS: Partial<Record<Ats, BoardReader>> = {
   greenhouse,
+  lever,
+  ashby,
 };
 
 export const ATS_NAMES: Record<Ats, string> = {
