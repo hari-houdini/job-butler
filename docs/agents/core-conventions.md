@@ -100,11 +100,11 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 - A Stage skill lives at `skills/<stage>/SKILL.md`, user-invoked (`disable-model-invocation: true`), and the `/job-butler` skill routes its Stage name to it by reading that file. Its shape: `run start <stage>` → the Stage's core commands → report → `run end --run <run_id>` unless `joined` was true. Run `run end` on every exit after a successful `run start`. Relay `error.message` as written.
 - The skill owns all conversation and every pipeline write; each write is one core command per batch (`discover boards` writes a whole run in one `withWriter`).
 - A **worker subagent** (`agents/<stage>-worker.md`) does only the Stage's LLM judgments. It has no outward tools and no Bash, so it can neither write pipeline state nor fetch: give it `tools: Read` at most, and the cheapest `model` that fits (haiku for extraction and classification, sonnet for rating and tailoring). The round trip: a core command returns the material to judge as JSON → the skill dispatches the worker with that JSON in the prompt (the worker reads nothing else, so Profile data reaches it only when the judgment needs it) → the worker returns one JSON object → the skill passes it to the core with `--input -`, which validates it and writes. Store each judgment's fixture in `core/test/fixtures/judgments/`.
-- Discover has no worker yet: reading boards needs no judgment. The first Discover judgment (#37's "same job?" confirmation or #38's LinkedIn matching) adds `agents/discover-worker.md` in this shape.
+- `agents/discover-worker.md` (added by #37, `model: haiku`, `tools: Read`) judges "same job?" pairs: input the `same_job` array from `discover boards`, output `{"judgments": [{listing, other, same_job, reason}]}` for `discover confirm`. A later Discover judgment (#38's LinkedIn → ATS match) adds its own section to this worker and its own core command, rather than a second worker.
 
 ## Discover (set by #33)
 
-`discover boards` reads every Target company's board, then in one write: creates the Discover run, adds a Sighting to every Listing seen (creating new Listings), and marks gone every Listing missing from a board that was read **successfully** (a failed board marks nothing gone). It returns `discover_run` and `new` (`[{id, company, title, location}]`). Discover's writes need no Approval: none of its commands are in `CHECKPOINT_COMMANDS` or `GATED_COMMANDS`.
+`discover boards` reads every Target company's board, then in one write: creates the Discover run, adds a Sighting to every Listing seen (creating new Listings), and marks gone every Listing missing from a board that was read **successfully** (a failed board marks nothing gone). It returns `discover_run`, `new` (`[{id, company, title, location}]`) and `same_job` (pairs for the worker; see "Dedupe"). Discover's writes need no Approval: none of its commands are in `CHECKPOINT_COMMANDS` or `GATED_COMMANDS`.
 
 ### Board readers (`core/src/boards/`)
 
@@ -116,15 +116,35 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 
 - ID: `<board id>:<source_job_id>`, e.g. `greenhouse:acme:4012345`, kept for life.
 - `source` (the ATS), `board` (board ID), `company` (the Target company's name), every `JobPosting` field, plus:
-  - `aliases: [{id, url}]`: starts as the Listing's own ID and URL. #37 and #38 add others.
-  - `sightings: [{discover_run, alias, seen_at}]`: one per Discover run that saw it, `alias` naming the copy seen.
+  - `aliases: [{id, url, board, source, source_job_id, title, location, via, added_at}]`: every copy of the job. The first is the Listing's own posting (`via: "own"`); others joined by `shared-ats-link`, `same-job` or `repost`. Track matches on every alias; Apply prefers an employer-ATS alias. (Listings written before #37 have `{id, url}` only.)
+  - `sightings: [{discover_run, alias, seen_at, repost?}]`: one per alias seen per Discover run; `repost: true` on the Sighting that recorded a repost.
   - `first_seen_at` (Job Butler's own first Sighting, never changed) and `last_seen_at`. Screen's age is the earlier of `first_seen_at` and `posted_at`, since `posted_at` resets on republish.
-  - `gone: boolean`, `gone_at`: set when its board was read and it was missing; cleared when it is seen again.
-- A later Sighting refreshes the posting fields and keeps every other field, so Screen results and marks added by later Stages survive Discover.
+  - `gone: boolean`, `gone_at`: set when it wasn't seen and every board it is on that the run covered was read successfully; cleared when it is seen again.
+  - `repost_count` (the ghost score's repost signal, #39), `similar_roles` (IDs of live Listings for the same role kept apart; once set, kept), `distinct_from` (IDs the LLM or a split ruled a different job: never merged), `merges: [{listing, alias, step, reason, merged_at}]` (LLM merges), `overrides: [{kind: "split", from|into, alias, at}]` (on both Listings of a split; the Decision tree (#34) draws an override node from it in both trees).
+- A Sighting through a copy on the Listing's own `board` refreshes the posting fields (so a repost's URL becomes the live one); a Sighting through another source's alias only adds the Sighting. Every other field is kept, so Screen results and marks added by later Stages survive Discover.
 
 ### Discover run record (`pipeline/discover-run/<uuid>.json`)
 
-`started_at`, `finished_at`, `run_id` (the run lock's, or null), `sources: [{id, ats, company, status: "ok"|"failed"|"skipped", jobs, error: {code, message}|null}]`, `new_listings` and `gone_listings` (Listing IDs), `listings_seen`. The digest (#52) reports every source whose status isn't `ok`.
+`started_at`, `finished_at`, `run_id` (the run lock's, or null), `sources: [{id, ats, company, status: "ok"|"failed"|"skipped", jobs, error: {code, message}|null}]`, `new_listings` and `gone_listings` (Listing IDs), `listings_seen`, `merges: [{listing, alias, step: "shared-ats-link"|"same-job", reason}]` (`discover confirm` appends its merges), `reposts: [{listing, alias}]`, `similar_roles: [[id, id]]` (newly marked pairs). The digest (#52) reports every source whose status isn't `ok` and every `same-job` merge.
+
+### Dedupe (set by #37, code in `core/src/dedupe.ts`)
+
+Every posting `discover boards` reads is matched within its company scope (see "Same role"), in order:
+
+1. **Same alias:** its `<board id>:<job id>` is an alias of a Listing → a Sighting there.
+2. **Shared ATS link:** its ID or the ATS posting its `url` points to (`atsPostingId(url)`: Greenhouse, Lever, Ashby URL patterns → `<ats>:<token>:<job id>`) equals an alias's ID or link → a new alias and Sighting, recorded as a merge. Readers must keep `source_job_id` equal to the ID in the posting URL so this holds; #36 adds Workday to `atsPostingId`.
+3. **Repost:** a Listing gone at most 60 days (`gone_at` ≥ now − 60 d), same title and location, description word-trigram Jaccard ≥ 0.8 → alias, Sighting with `repost: true`, `repost_count` + 1.
+4. Otherwise a new Listing.
+
+Then, over all live Listings: pairs with the same role and location on the **same board**, or ruled distinct, are marked `similar_roles`; pairs on **different boards** not yet judged come back as `same_job` (`[{listing, other}]`, `listing` the later-seen, each side `{id, company, title, location, source, url, description}`). The skill sends them to the worker and `discover confirm <discover_run_id> --input -` merges confirmed pairs and keeps the rest apart (`distinct_from` + `similar_roles`). A pair no longer open is reported in `skipped`. Unconfirmed pairs come back on the next run.
+
+- **Survivor of a merge:** the Listing with an Application, else the first seen (ties: the board read first). The other Listing's aliases and Sightings move over and its record is deleted, so a late copy of a Listing with an Application never makes a second Application or a Shortlist entry. A pair where both have an Application is never offered.
+- **Applications** are found by their `listing` field (the Listing ID). Screen (#34) must use that field name.
+- **Split** (`listing split <listing_id> <alias_id>`, the job seeker's override, no Approval): the alias and its Sightings become a Listing whose ID is the alias; posting fields come from the alias (title, location, URL, board) and the rest from the old Listing until the next Sighting refreshes them; Screen results (`screen`, `shortlist`, `decision_tree`) are not copied. Both get a split override and each other in `distinct_from`. The Listing's own ID can't be split off (`SPLIT_OWN_ALIAS`).
+
+### Same role (set by #37 for #42, code in `core/src/same-role.ts`)
+
+`sameRole(a, b, {location})` is the deterministic half of "same role at the same company": same scope (`sameCompany`: the same `employer` when both Listings have one (#40 sets `listing.employer` to the Employer ID), else the same `normaliseCompanyName`), same `normaliseTitle`, and with `location: true` the same `normaliseLocation`. Dedupe uses `location: true`; the reapply cooldown (#42) uses `location: false`. A match is only a candidate: the LLM confirms it (for #42, add a "same role?" section to the worker that judges limits, in the shape above). `normaliseCompanyName` lowercases, maps `&` to "and", drops punctuation and trailing legal suffixes (ltd, limited, plc, llp, uk, group, inc, llc, co, company, corp, gmbh); #40's register matcher can reuse it.
 
 ## Network
 
