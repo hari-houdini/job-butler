@@ -32,6 +32,10 @@ _Avoid_: Recommendations, picks
 The job seeker's pursuit of one Listing, from shortlist through outcome; the unit the pipeline tracks.
 _Avoid_: Job, lead, opportunity
 
+**Target company**:
+A company whose job board Discover searches, kept on a list in the Profile. Unlike the company allow list, it decides where Discover looks, not which Listings Screen keeps.
+_Avoid_: Watchlist, allow list, tracked company
+
 **Fit score**:
 A 0–100 score, with written bands, of how well a Listing matches the Profile, with reasons cited per criterion. It ranks the Shortlist and never removes a Listing.
 _Avoid_: Match score, relevance, rating
