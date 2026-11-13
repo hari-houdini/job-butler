@@ -87,3 +87,13 @@ export function notReached(spec: CheckSpec): Check {
     label: null,
   };
 }
+
+/** The flags or badges a set of Checks shows: failed or amber Checks with that effect. */
+export function marksFor(
+  checks: Check[],
+  effect: "flag" | "badge",
+): { check: string; label: string }[] {
+  return checks
+    .filter((c) => c.effect === effect && (c.status === "fail" || c.status === "warn"))
+    .map((c) => ({ check: c.check, label: c.label ?? `${c.name}: ${c.result}` }));
+}
