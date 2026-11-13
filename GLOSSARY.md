@@ -57,8 +57,16 @@ _Avoid_: Canned answers, form defaults
 ### Control
 
 **Approval**:
-The job seeker's explicit yes on one outward-facing action, such as submitting an Application or sending a message.
+The job seeker's explicit yes at a Checkpoint, covering only the actions that Checkpoint lists.
 _Avoid_: Confirmation, sign-off
+
+**Checkpoint**:
+One of the three points where Apply or Track stops for the job seeker's Approval: picking Listings from the Shortlist, the digest's status changes, and the handover before Submit.
+_Avoid_: Gate, stop
+
+**Standing grant**:
+A permission the job seeker has given once, which lasts across sessions until revoked. Sensitive or destructive grants expire with their session instead.
+_Avoid_: Blanket approval, always-allow
 
 ### Applying
 
