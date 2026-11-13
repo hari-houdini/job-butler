@@ -14,9 +14,12 @@ import { treePath, writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { fitStep } from "./fit.ts";
+import { ghostStep } from "./ghost.ts";
 import { readRunLock } from "./lock.ts";
 import { assertProfileComplete, readProfile } from "./profile.ts";
-import { type Check, notReached, type ScreenStep } from "./screen-check.ts";
+import { reapplyRestore } from "./restore.ts";
+import { denyStep, scamStep } from "./scam-gate.ts";
+import { type Check, marksFor, notReached, type ScreenStep } from "./screen-check.ts";
 import { getRecord, listRecords, type StoredRecord, withWriter } from "./store.ts";
 import { isObject, type Problems } from "./validate.ts";
 
@@ -25,7 +28,7 @@ import { isObject, type Problems } from "./validate.ts";
  *   scam gate and deny list (#39, effect "exclude"), ghost score (#39, "flag"),
  *   Sponsorship (#41, "flag"/"badge"), fit (#34), Application limit (#42, "flag"/"badge").
  */
-export const SCREEN_STEPS: ScreenStep[] = [fitStep];
+export const SCREEN_STEPS: ScreenStep[] = [scamStep, denyStep, ghostStep, fitStep];
 
 /** What `screen` holds on a Listing. */
 export interface ScreenResult {
@@ -128,12 +131,9 @@ function runSteps(
   Record<string, unknown> {
   const checks: Check[] = [];
   const stored: Record<string, unknown> = {};
+  const afterExclusion: Check[] = [];
   let excludedBy: string | null = null;
   for (const step of SCREEN_STEPS) {
-    if (excludedBy !== null) {
-      checks.push(...step.checks.map(notReached));
-      continue;
-    }
     const result = step.run({
       listing,
       profile,
@@ -141,23 +141,26 @@ function runSteps(
       now,
     });
     Object.assign(stored, result.stored);
+    if (excludedBy !== null) {
+      // Not reached, but kept for a restore (restore.ts), which puts the Listing back at its fit.
+      checks.push(...step.checks.map(notReached));
+      afterExclusion.push(...result.checks);
+      continue;
+    }
     for (const c of result.checks) {
       checks.push(c);
       if (excludedBy === null && c.status === "fail" && c.effect === "exclude")
         excludedBy = c.check;
     }
   }
-  const labelled = (effect: string) =>
-    checks
-      .filter((c) => c.effect === effect && (c.status === "fail" || c.status === "warn"))
-      .map((c) => ({ check: c.check, label: c.label ?? `${c.name}: ${c.result}` }));
   return {
     ...stored,
+    ...(excludedBy === null ? {} : { after_exclusion: afterExclusion }),
     outcome: excludedBy === null ? "shortlist" : "excluded",
     excluded_by: excludedBy,
     checks,
-    flags: labelled("flag"),
-    badges: labelled("badge"),
+    flags: marksFor(checks, "flag"),
+    badges: marksFor(checks, "badge"),
   };
 }
 
@@ -193,12 +196,12 @@ export async function screenRecord(dataDir: string, input: unknown) {
     }
     const recorded: string[] = [];
     for (const { listing, judgment } of todo) {
-      const screen: ScreenResult = {
+      const screen = reapplyRestore(listing, {
         screened_at: now,
         run_id: runId,
         rescore_requested_at: null,
         ...runSteps(listing, profile, judgment, now),
-      };
+      } as ScreenResult) as ScreenResult;
       await w.put("listing", listing.id, {
         ...listing,
         screen,
@@ -304,6 +307,8 @@ export async function rankShortlist(dataDir: string): Promise<ShortlistItem[]> {
 export const REPLIES = [
   { reply: "why <letter>", does: "show every check on that Listing, with its evidence" },
   { reply: "pick a, b", does: "pick Listings from the Shortlist (asks for your Approval)" },
+  { reply: "show excluded", does: "list the excluded Listings with the reasons" },
+  { reply: "restore <name>", does: "put an excluded Listing back at its fit position, flagged" },
   { reply: "help", does: "list these replies" },
 ];
 
@@ -325,7 +330,7 @@ export async function digest(dataDir: string) {
         `${s.title.padEnd(34)} ${s.location ?? ""}${marks ? `  ${marks}` : ""}`.trimEnd(),
     );
   }
-  lines.push(`EXCLUDED (${excluded})`);
+  lines.push(`EXCLUDED (${excluded})${excluded > 0 ? "  collapsed · reply: show excluded" : ""}`);
   if (pending > 0) lines.push(`${pending} Listing${pending === 1 ? "" : "s"} waiting for Screen`);
   lines.push(`Reply: ${REPLIES.map((r) => r.reply).join(" · ")}`);
   return { shortlist, excluded, pending, text: lines.join("\n"), replies: REPLIES };

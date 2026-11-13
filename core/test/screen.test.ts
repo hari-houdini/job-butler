@@ -280,7 +280,7 @@ test("the Shortlist ranks by Fit score, lettered a, b, c, and drops gone Listing
   const text = String(r.json.text);
   assert.match(text, /SHORTLIST \(4\)/);
   assert.match(text, /a\) 87 strong +Acme +Senior Backend Engineer +London/);
-  assert.match(text, /why <letter> · pick a, b · help/);
+  assert.match(text, /why <letter> · pick a, b · show excluded · restore <name> · help/);
 });
 
 test("why <letter> prints each check with its result and evidence", async (t) => {
@@ -302,7 +302,17 @@ test("why <letter> prints each check with its result and evidence", async (t) =>
   const checks = r.json.checks as Check[];
   assert.deepEqual(
     checks.map((c) => c.check),
-    ["fit.location", "fit.seniority", "fit.target_roles", "fit.skills", "fit.score"],
+    [
+      "scam.signs",
+      "scam.no_vacancy",
+      "deny.list",
+      "ghost.score",
+      "fit.location",
+      "fit.seniority",
+      "fit.target_roles",
+      "fit.skills",
+      "fit.score",
+    ],
   );
 });
 
@@ -325,7 +335,13 @@ test("help lists the replies the digest takes", async (t) => {
   const r = await runCli(["screen", "digest"], { dataDir });
 
   const replies = (r.json.replies as { reply: string }[]).map((x) => x.reply);
-  assert.deepEqual(replies, ["why <letter>", "pick a, b", "help"]);
+  assert.deepEqual(replies, [
+    "why <letter>",
+    "pick a, b",
+    "show excluded",
+    "restore <name>",
+    "help",
+  ]);
 });
 
 // ---------------------------------------------------------------------------------------
@@ -477,7 +493,8 @@ test("each screened Listing gets a Decision tree with check, rule, result and ci
     ),
     mmd,
   );
-  assert.ok(lines.includes("  L --> c_fit_location"));
+  assert.ok(lines.includes("  L --> c_scam_signs"));
+  assert.ok(lines.includes("  c_ghost_score --> c_fit_location"));
   assert.ok(lines.includes("  c_fit_location --> c_fit_seniority"));
   assert.match(
     mmd,
