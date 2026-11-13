@@ -1,0 +1,28 @@
+{
+  "kind": "search#companies",
+  "total_results": 2,
+  "items": [
+    {
+      "title": "KESTREL HOLDINGS LIMITED",
+      "company_number": "04567890",
+      "company_status": "dissolved",
+      "company_type": "ltd",
+      "address": {
+        "locality": "Edinburgh",
+        "postal_code": "X1 1XX"
+      },
+      "address_snippet": "1 High Street, Edinburgh"
+    },
+    {
+      "title": "KESTREL ROBOTICS LIMITED",
+      "company_number": "09876543",
+      "company_status": "active",
+      "company_type": "ltd",
+      "address": {
+        "locality": "Edinburgh",
+        "postal_code": "X1 1XX"
+      },
+      "address_snippet": "1 High Street, Edinburgh"
+    }
+  ]
+}

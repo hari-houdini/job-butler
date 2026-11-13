@@ -203,6 +203,17 @@ The Screen skill's loop: `screen pending` → one `screen-worker` dispatch → W
 - Weights, fixed in v1: skills = Σ(importance × match) / Σ importance × 100 with core 2, nice 1, strong 1, partial ½, none 0. Rules = mean of pass 1, unknown ½, fail 0, × 100. Fit = round(0.8 × skills + 0.2 × rules); any failed rule caps it at 49. Bands: 80+ strong, 50–79 partial, <50 weak.
 - `screen.fit`: `{score, band, skills_score, rules_score (1 dp), capped, weights, rules: [{rule, result, evidence}], summary, criteria}`. Checks: `fit.location`, `fit.seniority`, `fit.target_roles`, `fit.skills`, `fit.score`; none excludes or flags.
 
+## Screen exclusions and ghost score (set by #39)
+
+Steps in their own modules, in `SCREEN_STEPS` order: `scamStep`, `denyStep` (`core/src/scam-gate.ts`), `ghostStep` (`core/src/ghost.ts`), then fit. Restore lives in `core/src/restore.ts`.
+
+- **Scam gate** (`scam.signs`, `scam.no_vacancy`; effect `exclude`): deterministic text rules over the title and description, no model. Signs: `payment` (fees, buy your own kit, gift cards), `crypto` (paid in or asked to send crypto, "optimisation tasks"), `reshipping`, `text_only_interview`. Evidence is `<sign>: "<quote>"`. `no_vacancy` is the employer's own statement ("no current vacancy", "collecting resumes"). Patterns are in `SCAM_SIGNS`/`NO_VACANCY`; keep them specific, because a fintech advert may say "payment" or "crypto" honestly.
+- **Deny list** (`deny.list`; `exclude`): the Profile's `filters.deny` companies (normalised name equal), titles and locations (case-insensitive substring). It changes only by editing the Profile, so `restore` refuses it (`DENY_LISTED`).
+- **Ghost score** (`ghost.score`): additive. Signals (`screen.ghost.reasons: [{signal, points, detail}]`): `age` (earlier of `first_seen_at` and `posted_at`), `repost`, `prospect_post` (Greenhouse `internal_job_id` null), `expired` (`deadline`/`validThrough` before now), `existence_unverified` (LinkedIn only), `missing_salary` (weak). `screen.ghost = {score, band, reasons}`. **All weights and band cut-offs are the named constants `GHOST_WEIGHTS` and `GHOST_BANDS` at the top of `ghost.ts`: the one place to change them. They are first estimates ranked from `docs/research/ghost-job-signals.md` and are calibrated in a later pass.** Bands: Low, Medium (badge `Ghost risk: medium`), High (flag `Ghost risk: high`: sorts below the fit order, Fit unchanged).
+- **Not reached, but kept:** `runSteps` still runs the steps after an exclusion and stores their real Checks in `screen.after_exclusion` (and their `stored` fields, so the Fit score exists) while recording "not reached" in `checks`. Nothing else reads `after_exclusion` except restore.
+- **`show excluded`**: `{excluded: [{id, company, title, location, excluded_by, check, reasons, restorable}], text}`. The digest shows `EXCLUDED (n)` collapsed.
+- **`restore <name>`** (no Approval): `<name>` is a Listing ID, or words found in `<company> <title>` among excluded Listings (`NOT_FOUND`, `AMBIGUOUS_NAME` with IDs). It appends `{kind: "restore", check, at}` to `listing.overrides`, swaps `after_exclusion` into `checks`, sets `outcome: "shortlist"`, `excluded_by: null`, and adds the badge `Restored: <check name>` (a badge, not a flag, so the Listing sits at its fit position; ghost High still flags). The excluding Check stays failed in the tree, plus an `Override: restore` node. Returns `restored`, `override` and the digest. A later `screen rescore` keeps the restore (`reapplyRestore`).
+
 ## Application record and Event log (set by #34)
 
 `pipeline/application/<uuid>.json`, written by `core/src/application.ts`:
@@ -220,6 +231,21 @@ The Screen skill's loop: `screen pending` → one `screen-worker` dispatch → W
 - Dedupe (#37) merges delete a Listing record and splits change `overrides` without touching trees: the survivor's tree catches up at the next `screen record`, and the deleted Listing's `.mmd` stays until the next `prune` removes orphans.
 - After the pick: `SL(["Shortlisted · Fit …"]):::ok` → one node `e<n>` per Event log entry (`<from> → <to>`, stage and time, reason, Approval citation; class `human` with an Approval, else `ok`) → `ST(["Status: <label>"]):::out`.
 - Text is escaped with Mermaid entity codes (`#quot;`, `#lt;`, `#gt;`) and cut to 140 characters. The `classDef` lines are the colour key shared with the terminal and the pipeline view (#43).
+
+## Application limits (set by #42)
+
+Code in `core/src/application-limit.ts`; the only edits elsewhere are `limitStep` in `SCREEN_STEPS` (after `fitStep`), `world` on `StepContext` (`ScreenWorld`: Applications, Listings, Employers, Preferences, loaded once per `screen record`), the live limit marks in `rankShortlist`, the pick check in `application.ts` and the `application_limit` override node in `decision-tree.ts`.
+
+- **Limit** `{count, window_days | window_months, scope: "same_role" | "company", source: "note" | "advert" | "default", quote?}`, from the first source present:
+  1. **Note:** the Employer record's `application_limit_note` (same shape without `source`/`quote`). Found by the Listing's `employer` ID, else the Employer whose `name` normalises to the Listing's company. Written with `record put employer <id>` (#40 owns the rest of the Employer).
+  2. **Advert:** the screen worker's judgment section `application_limit`: `null` (no limit stated) or `{count, window_days|window_months, scope, quote}`; the quote is required. Optional per Listing; stored as `screen.advert_limit`.
+  3. **Default:** `application_limits.default_reapply_cooldown` in Preferences.
+- **Counting** (`countApplications`): Applications counted are Submitted (or later), Picked-not-submitted and External. A pick withdrawn before it was submitted does not count; this is also how an Application abandoned before Submit ends, since Status has no separate "abandoned". Date: the `submitted` Event log entry, else the `picked` entry; External uses `applied_at` (#50 should set it to the earliest confirmation mail), else its first event. The window is rolling from now (days exactly, months by calendar month); an Application dated in the window counts. Scope `company` counts every role; `same_role` also needs the same normalised title (`sameRole(..., {location: false})`, no LLM confirmation yet). Company identity is the Employer ID when both sides have one (an Application's `employer`, else its Listing's), else the normalised company name. `application pick` now stores `employer` on the Application. #50 only has to create `origin: "external"` Applications with `company`, `title` and `applied_at`.
+- **Check** `application_limit.limit`, one per Listing (so every Decision tree has the node): `pass` (under), `warn` + `badge` when the Listing would use the last slot, `warn` + `flag` when it would go over. The label reads like "would be your 4th of 3 at Acme in 30 days (your note)" (an advert source quotes the advert; same-role adds "for the same role").
+- **Live, not snapshot:** counts change after Screen, so `rankShortlist` re-evaluates every Shortlisted Listing against today's Applications and replaces the stored limit mark; `screen why` and the tree show Screen's snapshot. Over-limit Listings sort below the fit order, Fit unchanged.
+- **Suggestions:** Listings of one group (same company scope, plus title for `same_role`) that are not over the limit and outnumber the slots left get `group: {company, slots, members}`, and the top `slots` in rank order get `suggested: true`. The digest text tags `[suggested]` and adds a line per group. Rank order itself is not rearranged.
+- **Override:** `application pick <id>... --override-limit <id>,<id>` (flag, so the Approval action is unchanged). A pick over its limit refuses `OVER_APPLICATION_LIMIT` (all or nothing, earlier picks in the same command count) unless named. The override is written in the Event log entry's reason and as `listing.overrides` `{kind: "application_limit", at, label}`, which the tree draws as an override node. The skill asks the job seeker before using it.
+- The Handover re-check (#87) can call `liveEvaluation(listing, await loadLimitWorld(dataDir), now)`.
 
 ## Retention and deletion (set by #53, `core/src/retention.ts`)
 
@@ -256,6 +282,63 @@ Every fetch goes through `httpGet` in `core/src/net.ts`. A JSON POST goes throug
   - **gh:** executable scripts in `core/test/fixtures/gh/`, selected with `env: { JOB_BUTLER_GH }`.
 - Fault injection: check `fault("<name>")` from `env.ts` at the point to interrupt; tests set `JOB_BUTLER_FAULT`.
 
+## Sponsor register and Employer matching (set by #40)
+
+Code: `core/src/sponsor.ts` (the register copy, CSV parsing, name normalising) and `core/src/employer.ts` (the matcher and Employer records). Tests: `core/test/sponsor-register.test.ts` with its own recorded network fixtures in `core/test/fixtures/sponsor-network*/` (point `JOB_BUTLER_NETWORK_FIXTURES` at one of them; the shared `network/manifest.json` is untouched).
+
+### Commands
+
+- `sponsor refresh`: downloads the register unless a copy was already downloaded today (UTC), then re-checks every cached Employer. Returns `refreshed`, `csv_url`, `organisations`, `as_of`, `stale`, `stale_note` and `rechecked: {checked, changed: [{id, before, after}]}` (null when nothing was downloaded). `sponsor status` reports freshness only.
+- `employer match --input` `{"company", "town"?, "description"?, "end_client"?, "judgment"?: {"choice": "<candidate key>" | null}}`: refreshes the register when due, matches, caches. Returns `employer` (the record), `cached`, `as_of`, `stale`, `stale_note`, `companies_house` (`not_set`, `used` or `unavailable`) and `judgment_needed` (null, or `{question, employer, town, candidates}`).
+- `employer confirm <id>`, `employer correct <id> --input {"organisation_name", "town"?} | {"none": true}`, `employer end-client <id> --input {"end_client"}`.
+- Setup stores the job seeker's own key with `profile put --section companies_house_key`. It is read from the Profile at match time and never bundled or logged. Without it, only tiers 1 and 2 run.
+
+### The register copy
+
+- Files: `<data>/cache/sponsor-register.csv` and `sponsor-register.json` (`downloaded_at`, `csv_url`, `last_error`). The CSV link is scraped from the GOV.UK publication page (`href` ending `.csv`) on each download, never hard-coded.
+- A failed download (page or CSV unreachable, no link, columns changed, empty file) keeps the last good copy, records `last_error`, and every result then carries `stale: true` and `stale_note: "data may be stale (as of <YYYY-MM-DD>)"`. The next successful download clears it. With no copy at all the command refuses `REGISTER_UNAVAILABLE`. Only successful downloads count toward "once a day", so a failure is retried on the next call.
+- Rows are grouped by licence holder (name and town): `organisation_name`, `town`, `county`, `entries: [{type_rating, route}]`. "X t/a Y" answers to both X and Y.
+
+### Matcher
+
+Name normalising (`normaliseName`): lower case, `&` to `and`, punctuation dropped, the words ltd, limited, plc and llp removed. Town agreement (`townsAgree`): one town's words are all in the other's.
+
+1. **exact:** normalised names equal. One register holder gives the match, whatever the town. Several holders with that name need the town to pick exactly one, else unmatched.
+2. **fuzzy:** the town is required and must agree. Candidates are holders in that town whose trigram Dice similarity is at least `FUZZY_THRESHOLD`; the top `MAX_FUZZY_CANDIDATES` (3) are kept. One candidate is accepted. Two or three come back as `status: "needs_judgment"` with `judgment_needed.candidates` (`{key, organisation_name, town, score}`); the skill passes that JSON to the worker, and the worker returns `{"choice": "<key>"}` or `{"choice": null}`, which the skill passes back in `judgment`. A key that isn't a candidate refuses `JUDGMENT_NOT_A_CANDIDATE`; the model never names an entry of its own.
+3. **Companies House (key set only):** a fuzzy match counts only if an active company with that name exists in that town (otherwise unmatched); an exact match gets its `company_number` when verified but stands without it. When tiers 1 and 2 found nothing, the brand is searched at Companies House and its active, same-town legal name is matched exactly against the register (`match_tier: "companies_house"`).
+4. Anything else is `unmatched` with `unmatched_reason`. The matcher never answers "not sponsored": that is Sponsorship's job (#41), and unmatched means unknown.
+
+Companies House requests use Basic auth with the key as the username (`httpGet(url, headers)` in `net.ts`). A refused key (401/403) stops further requests in that call; any other failure makes `companies_house` read `unavailable` and unverifiable fuzzy matches stay unmatched.
+
+### Employer record (`pipeline/employer/<id>.json`)
+
+`id` = normalised brand name with spaces as `-`, plus `:<normalised town>` when the town is known (`employerId`). Fields beyond the store's four:
+
+| field | meaning |
+| --- | --- |
+| `brand_name`, `town` | as seen on the Listing (`town` null when unknown) |
+| `status` | `matched`, `unmatched`, `needs_judgment` or `agency` |
+| `register_entry` | `{organisation_name, town, county, entries: [{type_rating, route}]}` for `matched`, else null. **Ticket #41 reads this**: the A rating and Skilled Worker route live in `entries` (one row per route) |
+| `company_number` | Companies House number when verified, else null; `verified_by_companies_house` |
+| `match_tier` | `exact`, `fuzzy`, `companies_house` or `corrected`; `confidence` is `"high"` for every match |
+| `matched_at` | the match date: when this Employer was last evaluated (ISO UTC); `register_as_of` is the date of the register copy used |
+| `unmatched_reason`, `candidates` | why unmatched; the 1 to 3 candidates while `needs_judgment` |
+| `pinned` | null, or `{at, action: "confirmed" \| "corrected"}`; a pinned Employer is never re-matched |
+| `agency` | `{detected, signals, end_client, badge}` |
+| `mail_domains`, `application_limit_notes` | kept across re-matches; written by Track and Application limits |
+
+Results are cached: a second `employer match` for the same brand and town returns the record unchanged unless the register was downloaded since, an `end_client` or `judgment` is given, or the record is `needs_judgment`. `sponsor refresh` (and any `employer match` that triggers a download) re-matches every unpinned Employer against the new copy; a `needs_judgment` result keeps the earlier match while it is still a candidate. Confirm pins the current match; correct pins a named register entry (found by normalised name, plus town when ambiguous; `NOT_ON_REGISTER` otherwise) or "none".
+
+### Agencies
+
+Detected by: a name pattern (recruitment, recruiter, resourcing, staffing, talent, headhunter, search and selection, executive search, employment agency or business, manpower, personnel), "our client" wording in the description (our client, my client, on behalf of a client, confidential client), or, with a key, Companies House SIC codes starting `78`. An agency without a named end client gets `status: "agency"`, no `register_entry`, and `agency.badge: "agency, end client not named"` (Sponsorship shows unknown plus that badge). `employer end-client` (or `employer match` with `end_client`) matches the end client instead, stores it in `agency.end_client`, and clears the badge; the Employer stays keyed by the agency brand and town.
+
+### Open calibration items
+
+- **`FUZZY_THRESHOLD` (0.85) is a hand-picked placeholder.** There is no hand-labelled sample of real Listings here, so precision and recall per tier are unmeasured. Calibrate it on such a sample before trusting fuzzy matches; the fixtures only prove the tiers behave as designed.
+- **Companies House behaviour is unverified against the live API.** The fixtures were written from the published API reference, not recorded with a key. Still to check live: whether `search/companies` finds previous names and how it ranks near-matches, the exact `address.locality` values returned, and whether the SIC check needs the company profile (`/company/<number>`) as assumed.
+- The agency name patterns and the `78` SIC prefix come from the research, not from measured Listings.
+
 ## Track tracer (set by #48)
 
 `core/src/track.ts`; skill `skills/track/SKILL.md`; worker `agents/track-worker.md` (`model: haiku`, tools exactly `search_threads`, `get_thread`, `get_message` of the Gmail connector: read-only, no Bash, no Read, no writes).
@@ -280,6 +363,15 @@ Every fetch goes through `httpGet` in `core/src/net.ts`. A JSON POST goes throug
 - **Learning** (`learnFrom`, on approval or a no-change assign): the thread joins `gmail_threads` and the sender's learnable domain joins `mail_domains` on the Application and, when its Listing (or the Application) names an `employer` that has a record, on that Employer record.
 - **Employer scope** is the `employer` ID when both Applications have one, else the normalised company name. **Decision:** the Employer record's shape is owned by Screen (#40); Track only reads and appends `mail_domains`, and keeps its own copy on the Application so it works without one.
 - **Calendar:** the worker (now also `search_events`, `get_event`, `list_events` of the Google Calendar connector, nothing that writes) returns events as messages with `source: "calendar"`, the organizer in `from`, the event ID as `thread_id`. The core forces their classification to `interview_invite`. Step 1 matches `calendar_events` (learned the same way) instead of `gmail_threads`; MessageRef carries `source`.
+
+## LinkedIn job-alert emails (set by #51)
+
+`core/src/alerts.ts`; worker `agents/alert-worker.md` (`model: haiku`, tools exactly the three read-only Gmail tools, the Track worker's allowlist); route in `skills/discover/SKILL.md` ("Taking in LinkedIn alert emails"), also offered from Track as the reply `alerts`.
+
+- **Commands:** `linkedin alerts window` (`query` = `after:<date> from:jobalerts-noreply@linkedin.com`, `processed_ids`) and `linkedin alerts record --input {"alerts": [{message_id, thread_id, received_at, from?, subject?, jobs: [{company, title, location|null, url|null}]}]}`. Refused as `ALERT_INVALID` (or `NOT_A_LINKEDIN_URL` for a job link that isn't LinkedIn's), writing nothing.
+- **Intake:** each new alert's jobs go through `addLinkedInJobs` with `intake: "alert"` and an empty `description`, so alert and pasted Listings share one shape and the same match and `linkedin confirm` flow; the output is `linkedin add`'s plus `alerts_new` and `alerts_skipped`. One job in several alerts is one job (the first copy is used). Unmatched stays LinkedIn-only, `existence_unverified`.
+- **Sync record:** no second dedupe store. Alert message IDs join the Gmail Sync record's `processed_ids`, and Track skips them (and `track-worker` leaves LinkedIn alert mail alone). Messages are marked processed only after the Listings are written, so a refused intake leaves them unread. The record gains `alerts_synced_at` for the alert window (30 days back the first time, then a day before it); Track's `last_synced_at` is never touched, so reading alerts can't hide mail from Track.
+- **Fixture:** `fixtures/judgments/linkedin-alerts.json` is the worker's reply for two recorded alert emails.
 
 ## Tailor (set by #44)
 

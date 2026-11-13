@@ -280,7 +280,7 @@ test("the Shortlist ranks by Fit score, lettered a, b, c, and drops gone Listing
   const text = String(r.json.text);
   assert.match(text, /SHORTLIST \(4\)/);
   assert.match(text, /a\) 87 strong +Acme +Senior Backend Engineer +London/);
-  assert.match(text, /why <letter> · pick a, b · help/);
+  assert.match(text, /why <letter> · pick a, b · show excluded · restore <name> · help/);
 });
 
 test("why <letter> prints each check with its result and evidence", async (t) => {
@@ -302,7 +302,18 @@ test("why <letter> prints each check with its result and evidence", async (t) =>
   const checks = r.json.checks as Check[];
   assert.deepEqual(
     checks.map((c) => c.check),
-    ["fit.location", "fit.seniority", "fit.target_roles", "fit.skills", "fit.score"],
+    [
+      "scam.signs",
+      "scam.no_vacancy",
+      "deny.list",
+      "ghost.score",
+      "fit.location",
+      "fit.seniority",
+      "fit.target_roles",
+      "fit.skills",
+      "fit.score",
+      "application_limit.limit",
+    ],
   );
 });
 
@@ -325,7 +336,13 @@ test("help lists the replies the digest takes", async (t) => {
   const r = await runCli(["screen", "digest"], { dataDir });
 
   const replies = (r.json.replies as { reply: string }[]).map((x) => x.reply);
-  assert.deepEqual(replies, ["why <letter>", "pick a, b", "help"]);
+  assert.deepEqual(replies, [
+    "why <letter>",
+    "pick a, b",
+    "show excluded",
+    "restore <name>",
+    "help",
+  ]);
 });
 
 // ---------------------------------------------------------------------------------------
@@ -403,8 +420,9 @@ test("pick a, b records the Approval and creates one Picked Application per List
   assert.deepEqual(
     (after.json.shortlist as { letter: string; id: string }[]).map((s) => [s.letter, s.id]),
     [
-      ["a", "greenhouse:acme:103"],
-      ["b", "greenhouse:acme:104"],
+      // 103 is the same role as the picked 101, so the default cooldown sorts it below 104.
+      ["a", "greenhouse:acme:104"],
+      ["b", "greenhouse:acme:103"],
     ],
   );
 });
@@ -477,7 +495,8 @@ test("each screened Listing gets a Decision tree with check, rule, result and ci
     ),
     mmd,
   );
-  assert.ok(lines.includes("  L --> c_fit_location"));
+  assert.ok(lines.includes("  L --> c_scam_signs"));
+  assert.ok(lines.includes("  c_ghost_score --> c_fit_location"));
   assert.ok(lines.includes("  c_fit_location --> c_fit_seniority"));
   assert.match(
     mmd,
@@ -487,7 +506,9 @@ test("each screened Listing gets a Decision tree with check, rule, result and ci
     mmd,
     /c_fit_score\[.*→ 49 weak<br\/><i>.*capped at 49: location failed<\/i>"\]:::warn/,
   );
-  assert.ok(lines.includes('  c_fit_score --> SL(["On the Shortlist · Fit 49 weak"]):::out'));
+  assert.ok(
+    lines.includes('  c_application_limit_limit --> SL(["On the Shortlist · Fit 49 weak"]):::out'),
+  );
   assert.ok(
     lines.includes(
       "  classDef nr     fill:#f2f2f2,stroke:#b5b5b5,stroke-dasharray:4 3,color:#8a8a8a",
@@ -509,7 +530,9 @@ test("after the pick the tree carries on through the Event log", async (t) => {
   const lines = mmd.split("\n");
   assert.ok(before.includes("On the Shortlist · Fit 87 strong"));
   assert.ok(!mmd.includes("On the Shortlist"), "regenerated in full, not appended to");
-  assert.ok(lines.includes('  c_fit_score --> SL(["Shortlisted · Fit 87 strong"]):::ok'));
+  assert.ok(
+    lines.includes('  c_application_limit_limit --> SL(["Shortlisted · Fit 87 strong"]):::ok'),
+  );
   assert.ok(
     lines.includes(
       '  e1["<b>Picked</b><br/><small>screen · 2026-01-15T09:00:00.000Z</small><br/>Picked from ' +

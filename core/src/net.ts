@@ -27,8 +27,9 @@ function isLoopback(url: URL): boolean {
   return url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]";
 }
 
-export function httpGet(rawUrl: string): Promise<HttpResponse> {
-  return request(rawUrl);
+/** GET a URL. `headers` are extra request headers (Companies House takes Basic auth). */
+export function httpGet(rawUrl: string, headers?: Record<string, string>): Promise<HttpResponse> {
+  return request(rawUrl, undefined, headers);
 }
 
 /** POST a JSON body and ask for JSON back (Workday's cxs search). */
@@ -36,7 +37,11 @@ export function httpPostJson(rawUrl: string, body: unknown): Promise<HttpRespons
   return request(rawUrl, JSON.stringify(body));
 }
 
-async function request(rawUrl: string, jsonBody?: string): Promise<HttpResponse> {
+async function request(
+  rawUrl: string,
+  jsonBody?: string,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -66,7 +71,7 @@ async function request(rawUrl: string, jsonBody?: string): Promise<HttpResponse>
   try {
     const init: RequestInit =
       jsonBody === undefined
-        ? { headers: { "user-agent": "job-butler" } }
+        ? { headers: { "user-agent": "job-butler", ...headers } }
         : {
             method: "POST",
             headers: {

@@ -1,4 +1,6 @@
 // The command registry. Each later ticket adds its commands here, implemented in its own module.
+
+import { alertsWindow, recordAlerts } from "./alerts.ts";
 import { pickListings } from "./application.ts";
 import {
   addGrant,
@@ -13,6 +15,14 @@ import { detectBoard } from "./boards/detect.ts";
 import type { Command } from "./cli.ts";
 import { ensureSafeDataDir } from "./data-dir.ts";
 import { confirmSameJob, discoverBoards, splitMerged } from "./discover.ts";
+import {
+  confirmEmployer,
+  correctEmployer,
+  matchEmployer,
+  nameEndClient,
+  sponsorRefresh,
+  sponsorStatus,
+} from "./employer.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
@@ -21,6 +31,7 @@ import { endRun, readRunLock, startRun } from "./lock.ts";
 import { httpGet } from "./net.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
 import { assertProfileComplete, checkProfile, putProfile, readProfile } from "./profile.ts";
+import { restoreListing, showExcluded } from "./restore.ts";
 import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
@@ -37,6 +48,12 @@ import {
   trackWindow,
 } from "./track.ts";
 import { openView, regenerateView } from "./view.ts";
+
+function needId(args: string[]): string {
+  const [id] = args;
+  if (id === undefined) throw usageError("<id> is required");
+  return id;
+}
 
 export const commands: Record<string, Command> = {
   help: {
@@ -267,6 +284,49 @@ export const commands: Record<string, Command> = {
   },
 
   // Screen (docs/agents/core-conventions.md, "Screen").
+  "sponsor refresh": {
+    usage: "sponsor refresh",
+    summary: "Download the UK sponsor register (at most once a day) and re-check cached Employers.",
+    run: async ({ dataDir }) => ({ ...(await sponsorRefresh(dataDir)) }),
+  },
+
+  "sponsor status": {
+    usage: "sponsor status",
+    summary: "Say how fresh the local sponsor register copy is.",
+    run: async ({ dataDir }) => ({ ...(await sponsorStatus(dataDir)) }),
+  },
+
+  "employer match": {
+    usage:
+      'employer match --input <file>|- ({"company", "town"?, "description"?, "end_client"?, "judgment"?: {"choice"}})',
+    summary:
+      "Match a Listing's employer to the sponsor register and cache it as an Employer record.",
+    run: async (ctx) => ({ ...(await matchEmployer(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "employer confirm": {
+    usage: "employer confirm <id>",
+    summary: "Confirm an Employer's match and pin it.",
+    run: async ({ dataDir, args }) => ({ ...(await confirmEmployer(dataDir, needId(args))) }),
+  },
+
+  "employer correct": {
+    usage:
+      'employer correct <id> --input <file>|- ({"organisation_name", "town"?} or {"none": true})',
+    summary: "Correct an Employer's match to a register entry, or to none, and pin it.",
+    run: async (ctx) => ({
+      ...(await correctEmployer(ctx.dataDir, needId(ctx.args), await ctx.readInput())),
+    }),
+  },
+
+  "employer end-client": {
+    usage: 'employer end-client <id> --input <file>|- ({"end_client"})',
+    summary: "Name an agency Listing's end client and match it again.",
+    run: async (ctx) => ({
+      ...(await nameEndClient(ctx.dataDir, needId(ctx.args), await ctx.readInput())),
+    }),
+  },
+
   "screen pending": {
     usage: "screen pending",
     summary:
@@ -321,12 +381,34 @@ export const commands: Record<string, Command> = {
     run: async ({ dataDir, args }) => ({ ...(await why(dataDir, args[0])) }),
   },
 
+  "show excluded": {
+    usage: "show excluded",
+    summary: "The excluded Listings, each with the check that excluded it and the reasons.",
+    run: async ({ dataDir }) => ({ ...(await showExcluded(dataDir)) }),
+  },
+
+  restore: {
+    usage: "restore <name>",
+    summary:
+      "The job seeker's override of an exclusion: record it and put the Listing back at its " +
+      "fit position, flagged. A deny-listed Listing can't be restored.",
+    run: async ({ dataDir, args }) => ({
+      ...(await restoreListing(dataDir, args)),
+      ...(await digest(dataDir)),
+    }),
+  },
+
   "application pick": {
-    usage: "application pick <listing-id>...",
+    usage: "application pick <listing-id>... [--override-limit <listing-id>,...]",
     summary:
       "Shortlist-pick Checkpoint: create one Picked Application per Listing. Runs only under " +
-      "an Approval recorded with `approval record shortlist-pick` for this exact command.",
-    run: async ({ dataDir, args }) => ({ ...(await pickListings(dataDir, args)) }),
+      "an Approval recorded with `approval record shortlist-pick` for this exact command. A " +
+      "Listing over its Application limit is refused unless named in --override-limit.",
+    run: async ({ dataDir, args, flags }) => ({
+      ...(await pickListings(dataDir, args, {
+        overrideLimit: (flags["override-limit"] ?? "").split(",").filter((x) => x !== ""),
+      })),
+    }),
   },
 
   "application status": {
@@ -406,6 +488,22 @@ export const commands: Record<string, Command> = {
       "Take pasted (or alert) LinkedIn jobs in as Listings, read their Target company's board " +
       'for the same title, and return the "LinkedIn match" questions for the discover-worker.',
     run: async (ctx) => ({ ...(await addLinkedInJobs(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "linkedin alerts window": {
+    usage: "linkedin alerts window",
+    summary:
+      "The Gmail query the alert worker reads for LinkedIn job-alert emails, and the IDs already processed.",
+    run: async ({ dataDir }) => ({ ...(await alertsWindow(dataDir)) }),
+  },
+
+  "linkedin alerts record": {
+    usage:
+      'linkedin alerts record --input {"alerts": [{message_id, thread_id, received_at, jobs}]}',
+    summary:
+      "Take the alert worker's jobs in as LinkedIn Listings (intake alert) and record the " +
+      "alert messages in the Sync record so they are never read twice. Returns what `linkedin add` does.",
+    run: async (ctx) => ({ ...(await recordAlerts(ctx.dataDir, await ctx.readInput())) }),
   },
 
   "linkedin match": {
