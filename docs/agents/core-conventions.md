@@ -18,7 +18,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
 
 - The core is plain `.ts` run directly by Node (>= 22.18) through built-in type stripping. There is no build step and no `dist/`.
 - Write erasable TypeScript only (no `enum`, `namespace` or constructor parameter properties) and import local files with their `.ts` extension. `tsc --noEmit` (`erasableSyntaxOnly`) enforces both.
-- A plugin install copies the repo without running `npm install`, so the core has **no runtime dependencies**. Dev dependencies (TypeScript, Biome, `@types/node`) are fine. A ticket that truly needs a runtime package (Playwright for Apply, DOCX/PDF rendering for Tailor) must decide how it gets installed and record that here.
+- A plugin install copies the repo without running `npm install`, so the core has **no runtime dependencies**. Dev dependencies (TypeScript, Biome, `@types/node`) are fine. A ticket that truly needs a runtime package (Playwright for Apply, DOCX/PDF rendering for Tailor) must decide how it gets installed and record that here. (Tailor decided: hand-written writers, see "Tailor".)
 - Skills call the core as `node "${CLAUDE_SKILL_DIR}/../../core/src/cli.ts" <command> [args]`.
 
 ## CLI
@@ -244,3 +244,18 @@ Every fetch goes through `httpGet` in `core/src/net.ts`. A JSON POST goes throug
   - **Browser:** pages in `core/test/fixtures/browser/`, served by `serveBrowserFixtures(t)` on 127.0.0.1.
   - **gh:** executable scripts in `core/test/fixtures/gh/`, selected with `env: { JOB_BUTLER_GH }`.
 - Fault injection: check `fault("<name>")` from `env.ts` at the point to interrupt; tests set `JOB_BUTLER_FAULT`.
+
+## Tailor (set by #44)
+
+`/job-butler:tailor` (`skills/tailor/SKILL.md`) runs one `tailor-worker` (`agents/tailor-worker.md`, `model: sonnet`, `tools: Read`) per Picked Application, `batch_size` (3) in parallel. Commands (`core/src/tailor.ts`), none needs an Approval; editing is not a Checkpoint:
+
+- `tailor pending [<application-id>...]`: Applications with status `picked` and no `tailor` (or the ones named, for an edit). Each: `application_id`, `listing_id`, `company`, `title`, `location`, `description`, `base_resume`, `facts` (`[{ref, kind, text}]`, refs like `summary`, `experience.0`, `experience.0.bullets.1`, `education.0`, `skills.2`), `previous` (the last worker JSON, or null) and `judgments_file` (`<data>/inbox/tailor-<id>.json`). Never identity or contact details.
+- `tailor record <application-id> --input <file>`: the worker JSON `{fit_summary, summary: {text, sources}, experience: [{fact, bullets: [{text, source}]}], education|skills|projects|certifications: [{fact}], keywords: [{keyword, abbreviation, advert_quote, status: used|gap}], changes}`. The core fills employer, title, dates, schools and skill names from the Base resume by `fact`. It refuses `JUDGMENT_INVALID`, writing nothing, when: a ref isn't a Base resume fact; a bullet's `source` isn't a fact of its own role; the summary is over 60 words or cites nothing; a `gap` keyword (or its abbreviation) appears anywhere in the resume; a `used` keyword appears in no bullet, first appears outside a bullet (the summary), or is not written as "Full Name (ABBR)" at first use. Matching is whole-word and case-insensitive.
+- Output: `folder`, `paths` (`md`, `docx`, `pdf`, `notes`), `revision`, `fit_summary`, `keywords` (table with `used_in: [{source, text}]`), `gaps`, `changes`, `text` (terminal keyword table).
+
+**Folder** `<data>/tailor/<application id>/`, recorded as `tailor.folder` (relative; `record delete` removes it): `<Name>-Resume.md|docx|pdf` (neutral names from `identity.name`, ASCII, e.g. `Ada-Example-Resume.docx`; these are the upload names), `notes.md` (fit summary, keyword table, gaps, changes, sources) and `notes.json` (the same plus the worker's `judgment`, which `tailor pending` returns as `previous`). Recording again replaces every file and bumps `tailor.revision`. The Application moves `picked` to `tailored` once, with a `tailor` Event log entry and no Approval; any other status is kept. `tailor` on the Application: `{folder, files, revision, tailored_at, fit_summary, gaps}`.
+
+**Rendering** (`document.ts`, `render-docx.ts`, `render-pdf.ts`): a document is a `DocumentModel` of blocks (`title`, `line`, `heading`, `entry`, `paragraph`, `bullet`), rendered to Markdown, DOCX and PDF by `renderDocument`. The model cannot express a table, column, text box, image, header or footer, so none can appear; contact details sit in body lines under the title. Files over 2.5 MB refuse `RENDER_TOO_LARGE`. The cover letter (#47) builds its own `DocumentModel` and calls `renderDocument`; it needs no new writer.
+
+**Decision: no runtime dependencies for rendering.** A plugin install runs no `npm install`, and the ATS-safe subset is small, so both writers are hand-written. DOCX is a zip (`node:zlib` `deflateRawSync` and `crc32`, fixed timestamps) of `document`, `styles` and `numbering` parts: no header, footer or media parts. PDF is plain objects with the built-in Helvetica and Helvetica-Bold (WinAnsi, no embedded fonts), one text column, A4, uncompressed content streams, with Helvetica widths built in for wrapping. Characters outside WinAnsi print as `?` in the PDF; the DOCX keeps them. A library (`docx`, `pdf-lib`) would add a bundled `node_modules` for no output the subset needs.
+

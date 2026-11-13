@@ -25,6 +25,7 @@ import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
+import { tailorPending, tailorRecord } from "./tailor.ts";
 
 export const commands: Record<string, Command> = {
   help: {
@@ -283,6 +284,24 @@ export const commands: Record<string, Command> = {
     usage: "screen digest",
     summary: "The ranked Shortlist (lettered a, b, ...) with its terminal text and the replies.",
     run: async ({ dataDir }) => ({ ...(await digest(dataDir)) }),
+  },
+
+  "tailor pending": {
+    usage: "tailor pending [<application-id>...]",
+    summary:
+      "The Applications to tailor (Picked, or the ones named, for an edit) with the advert and " +
+      "numbered Base resume facts for the tailor worker, never identity details.",
+    run: async ({ dataDir, args }) => ({ ...(await tailorPending(dataDir, args)) }),
+  },
+
+  "tailor record": {
+    usage: "tailor record <application-id> --input <file>|- (the tailor worker's JSON)",
+    summary:
+      "Check the tailor worker's resume against the Base resume, render Markdown, DOCX and PDF " +
+      "into the Application's folder, and mark it Tailored. Run again with an edit to re-render.",
+    run: async (ctx) => ({
+      ...(await tailorRecord(ctx.dataDir, ctx.args[0], await ctx.readInput())),
+    }),
   },
 
   "screen why": {

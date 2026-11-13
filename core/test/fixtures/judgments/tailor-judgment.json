@@ -1,0 +1,47 @@
+{
+  "fit_summary": "Strong match: payment API latency work and PostgreSQL are evidenced; no Kafka experience.",
+  "summary": {
+    "text": "Backend engineer with six years building payment APIs, a fit for Acme's payments platform team.",
+    "sources": ["summary"]
+  },
+  "experience": [
+    {
+      "fact": "experience.0",
+      "bullets": [
+        {
+          "text": "Cut card authorisation latency by 40% in the payment Application Programming Interface (API) by moving fraud checks off the hot path.",
+          "source": "experience.0.bullets.0"
+        },
+        { "text": "Mentored four engineers.", "source": "experience.0.bullets.1" }
+      ]
+    }
+  ],
+  "education": [{ "fact": "education.0" }],
+  "skills": [{ "fact": "skills.0" }, { "fact": "skills.1" }],
+  "projects": [],
+  "certifications": [],
+  "keywords": [
+    {
+      "keyword": "Application Programming Interface",
+      "abbreviation": "API",
+      "advert_quote": "design and build Application Programming Interfaces",
+      "status": "used"
+    },
+    {
+      "keyword": "Mentored",
+      "abbreviation": null,
+      "advert_quote": "mentored engineers",
+      "status": "used"
+    },
+    {
+      "keyword": "Kafka",
+      "abbreviation": null,
+      "advert_quote": "Kafka is a plus",
+      "status": "gap"
+    }
+  ],
+  "changes": [
+    "Led with the payment latency achievement, in the advert's words.",
+    "Left out nothing from the Base resume's one role."
+  ]
+}
