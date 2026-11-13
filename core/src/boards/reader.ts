@@ -3,7 +3,7 @@
 // (discover.ts) turns postings into Listings, Sightings and the Discover run record.
 // Add an ATS by writing a reader in this folder and registering it in boards/index.ts.
 import { CoreError } from "../errors.ts";
-import { httpGet } from "../net.ts";
+import { httpGet, httpPostJson } from "../net.ts";
 
 /** A Target company's confirmed board, as stored in the Profile (filters.target_companies). */
 export type Board =
@@ -51,9 +51,26 @@ export interface BoardReader {
 /** A board that couldn't be read. Discover records it on the run as a failed source. */
 export class BoardFailure extends CoreError {}
 
-/** GET a JSON document, turning a non-2xx status or a non-JSON body into a BoardFailure. */
-export async function fetchBoardJson(url: string, what: string): Promise<unknown> {
-  const res = await httpGet(url);
+/**
+ * GET a JSON document (or POST `postBody` as JSON), turning a non-2xx status or a non-JSON
+ * body into a BoardFailure.
+ */
+export async function fetchBoardJson(
+  url: string,
+  what: string,
+  postBody?: unknown,
+): Promise<unknown> {
+  const body = await fetchBoard(url, what, postBody);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw changedShape(what, url, "the response isn't JSON");
+  }
+}
+
+/** GET a page (or POST `postBody` as JSON); a non-2xx status is a BoardFailure. */
+export async function fetchBoard(url: string, what: string, postBody?: unknown): Promise<string> {
+  const res = postBody === undefined ? await httpGet(url) : await httpPostJson(url, postBody);
   if (res.status === 404) {
     throw new BoardFailure(
       "BOARD_NOT_FOUND",
@@ -68,11 +85,7 @@ export async function fetchBoardJson(url: string, what: string): Promise<unknown
       { status: res.status },
     );
   }
-  try {
-    return JSON.parse(res.body);
-  } catch {
-    throw changedShape(what, url, "the response isn't JSON");
-  }
+  return res.body;
 }
 
 export function changedShape(what: string, url: string, detail: string): BoardFailure {

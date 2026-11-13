@@ -1,0 +1,26 @@
+{
+  "total": 2,
+  "jobPostings": [
+    {
+      "title": "Sr Associate Support Engineer, Adaptive Planning AI, ML & Platform Operations",
+      "externalPath": "/job/INDPune/Sr-Associate-Support-Engineer--Adaptive-Planning-AI--ML---Platform-Operations_JR-0110344",
+      "locationsText": "IND.Pune",
+      "postedOn": "Posted Yesterday",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110344"
+      ]
+    },
+    {
+      "title": "Sr Software Development Engineer VNDLY",
+      "externalPath": "/job/USA-OH-Mason/Sr-Software-Development-Engineer-VNDLY_JR-0110317",
+      "locationsText": "2 Locations",
+      "postedOn": "Posted 30+ Days Ago",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110317"
+      ]
+    }
+  ],
+  "userAuthenticated": false
+}

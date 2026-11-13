@@ -1,0 +1,66 @@
+{
+  "total": 0,
+  "jobPostings": [
+    {
+      "title": "Sr Associate Support Engineer, Adaptive Planning AI, ML & Platform Operations",
+      "externalPath": "/job/INDPune/Sr-Associate-Support-Engineer--Adaptive-Planning-AI--ML---Platform-Operations_JR-0110344",
+      "locationsText": "IND.Pune",
+      "postedOn": "Posted Yesterday",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110344"
+      ]
+    },
+    {
+      "title": "Sr Software Development Engineer VNDLY",
+      "externalPath": "/job/USA-OH-Mason/Sr-Software-Development-Engineer-VNDLY_JR-0110317",
+      "locationsText": "2 Locations",
+      "postedOn": "Posted 30+ Days Ago",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110317"
+      ]
+    },
+    {
+      "title": "Principal Software Engineer, Agentic UX",
+      "externalPath": "/job/USA-CA-Pleasanton/Principal-Software-Engineer--Agentic-UX_JR-0110769",
+      "locationsText": "USA, CA, Pleasanton",
+      "postedOn": "Posted 9 Days Ago",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110769"
+      ]
+    },
+    {
+      "title": "P4 Sr Software Development Engineer",
+      "externalPath": "/job/USA-CA-Pleasanton/P4-Sr-Software-Development-Engineer_JR-0110776",
+      "locationsText": "USA, CA, Pleasanton",
+      "postedOn": "Posted 9 Days Ago",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110776"
+      ]
+    },
+    {
+      "title": "Sr Distributed Systems Engineer (Python/Typescript)",
+      "externalPath": "/job/New-Zealand-Auckland/Sr-Distributed-Systems-Engineer--DevOps-_JR-0110402",
+      "locationsText": "New Zealand, Auckland",
+      "postedOn": "Posted Yesterday",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0110402"
+      ]
+    },
+    {
+      "title": "Software Development Engineer(Distributed Systems)",
+      "externalPath": "/job/USA-CA-Pleasanton/Software-Development-Engineer-Distributed-Systems-_JR-0109641",
+      "locationsText": "USA, CA, Pleasanton",
+      "postedOn": "Posted 20 Days Ago",
+      "remoteType": "Flex",
+      "bulletFields": [
+        "JR-0109641"
+      ]
+    }
+  ],
+  "userAuthenticated": false
+}

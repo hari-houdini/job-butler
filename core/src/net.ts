@@ -1,6 +1,8 @@
-// Every network fetch the core makes goes through httpGet. When JOB_BUTLER_NETWORK_FIXTURES
-// is set (always, in tests) responses come from <dir>/manifest.json instead of the network:
+// Every network fetch the core makes goes through httpGet (or httpPostJson). When
+// JOB_BUTLER_NETWORK_FIXTURES is set (always, in tests) responses come from <dir>/manifest.json
+// instead of the network:
 //   { "<url>": { "status": 200, "content_type": "application/json", "file": "<file in dir>" } }
+// A POST is keyed "POST <url> <body>", with the JSON body exactly as sent.
 // A URL missing from the manifest is refused, so tests never go online by accident.
 // Loopback URLs (127.0.0.1, localhost) are always fetched live: they serve browser fixtures.
 import { readFile } from "node:fs/promises";
@@ -25,7 +27,16 @@ function isLoopback(url: URL): boolean {
   return url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]";
 }
 
-export async function httpGet(rawUrl: string): Promise<HttpResponse> {
+export function httpGet(rawUrl: string): Promise<HttpResponse> {
+  return request(rawUrl);
+}
+
+/** POST a JSON body and ask for JSON back (Workday's cxs search). */
+export function httpPostJson(rawUrl: string, body: unknown): Promise<HttpResponse> {
+  return request(rawUrl, JSON.stringify(body));
+}
+
+async function request(rawUrl: string, jsonBody?: string): Promise<HttpResponse> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -39,11 +50,12 @@ export async function httpGet(rawUrl: string): Promise<HttpResponse> {
       string,
       FixtureEntry
     >;
-    const entry = manifest[rawUrl];
+    const key = jsonBody === undefined ? rawUrl : `POST ${rawUrl} ${jsonBody}`;
+    const entry = manifest[key];
     if (entry === undefined) {
       throw new CoreError(
         "NETWORK_FIXTURE_MISSING",
-        `No recorded response for ${rawUrl} in ${fixtures}/manifest.json.`,
+        `No recorded response for ${key} in ${fixtures}/manifest.json.`,
       );
     }
     const body = await readFile(join(fixtures, entry.file), "utf8");
@@ -52,7 +64,19 @@ export async function httpGet(rawUrl: string): Promise<HttpResponse> {
 
   let res: Response;
   try {
-    res = await fetch(url, { headers: { "user-agent": "job-butler" }, redirect: "follow" });
+    const init: RequestInit =
+      jsonBody === undefined
+        ? { headers: { "user-agent": "job-butler" } }
+        : {
+            method: "POST",
+            headers: {
+              "user-agent": "job-butler",
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: jsonBody,
+          };
+    res = await fetch(url, { ...init, redirect: "follow" });
   } catch (e) {
     throw new CoreError("NETWORK_ERROR", `Could not reach ${rawUrl}: ${(e as Error).message}`);
   }
