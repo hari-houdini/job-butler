@@ -59,3 +59,29 @@ _Avoid_: Canned answers, form defaults
 **Approval**:
 The job seeker's explicit yes on one outward-facing action, such as submitting an Application or sending a message.
 _Avoid_: Confirmation, sign-off
+
+### Pipeline records
+
+**Pipeline state**:
+Everything the Stages read and write to pass work along: Listings with their Sightings, Applications with their Status and Event log, and Sync records.
+_Avoid_: Database, store, cache
+
+**Sighting**:
+One observation of a Listing on a source, with the date it was seen. Repeated Sightings reveal reposts and let Screen judge how long a Listing has been open.
+_Avoid_: Hit, appearance
+
+**Status**:
+Where an Application stands right now, from picked through to a Track outcome.
+_Avoid_: State, stage
+
+**Event log**:
+The append-only record of every Status change on an Application, with the Stage that made it and when.
+_Avoid_: History, audit trail
+
+**Sync record**:
+Track's record of how far it has read from one connector (Gmail, Google Calendar), so the next run only looks at new mail and events.
+_Avoid_: Cursor, checkpoint
+
+**Discover run**:
+One pass of Discover across its sources, recording when it ran, which sources it searched, and any source that failed.
+_Avoid_: Scan, crawl, search
