@@ -24,12 +24,16 @@ export interface CommandContext {
   flags: Record<string, string | undefined>;
   /** Parse the JSON given with --input. Throws USAGE if absent or invalid. */
   readInput(): Promise<unknown>;
+  /** Read stdin as text (hook commands, which Claude Code feeds on stdin). */
+  readStdin(): Promise<string>;
 }
 
 export interface Command {
   /** One line shown by `help`, e.g. "record put <type> <id> --input <file>". */
   usage: string;
   summary: string;
+  /** Print the result as is, without {"ok": true}: Claude Code hook commands only. */
+  raw?: boolean;
   run(ctx: CommandContext): Promise<Record<string, unknown>>;
 }
 
@@ -37,9 +41,10 @@ export interface Command {
 const flagOptions = {
   "data-dir": { type: "string" },
   input: { type: "string" },
+  session: { type: "string" },
 } as const;
 
-async function main(argv: string[]): Promise<Record<string, unknown>> {
+async function main(argv: string[]): Promise<{ result: Record<string, unknown>; raw: boolean }> {
   let parsed: ReturnType<typeof parseArgs<{ options: typeof flagOptions; allowPositionals: true }>>;
   try {
     parsed = parseArgs({ args: argv, options: flagOptions, allowPositionals: true });
@@ -58,13 +63,12 @@ async function main(argv: string[]): Promise<Record<string, unknown>> {
     }
   }
   if (name === undefined || name === "help") {
-    return {
-      commands: Object.entries(commands).map(([n, c]) => ({
-        name: n,
-        usage: c.usage,
-        summary: c.summary,
-      })),
-    };
+    const list = Object.entries(commands).map(([n, c]) => ({
+      name: n,
+      usage: c.usage,
+      summary: c.summary,
+    }));
+    return { result: { commands: list }, raw: false };
   }
   const command = commands[name] as Command;
 
@@ -83,8 +87,9 @@ async function main(argv: string[]): Promise<Record<string, unknown>> {
         throw usageError(`--input is not valid JSON: ${(e as Error).message}`);
       }
     },
+    readStdin,
   };
-  return command.run(ctx);
+  return { result: await command.run(ctx), raw: command.raw === true };
 }
 
 async function readStdin(): Promise<string> {
@@ -98,7 +103,8 @@ function print(result: Record<string, unknown>): void {
 }
 
 try {
-  print({ ok: true, ...(await main(process.argv.slice(2))) });
+  const { result, raw } = await main(process.argv.slice(2));
+  print(raw ? result : { ok: true, ...result });
 } catch (e) {
   if (e instanceof CoreError) {
     print({ ok: false, error: { code: e.code, message: e.message, ...e.details } });

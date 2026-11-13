@@ -10,7 +10,14 @@ import { acquireLock, releaseLock } from "./lock.ts";
 
 export const SCHEMA_VERSION = 1;
 
-export const RECORD_TYPES = ["listing", "application", "employer", "discover-run", "sync"] as const;
+export const RECORD_TYPES = [
+  "listing",
+  "application",
+  "employer",
+  "discover-run",
+  "sync",
+  "approval",
+] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
 /** Every stored record carries these fields; the core sets all four. */
