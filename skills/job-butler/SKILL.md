@@ -21,5 +21,20 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
 
 ## Steps
 
-1. Run `status`. When `profile` is `"missing"`, tell the job seeker the `message` (no Profile yet, run `/job-butler setup`) and stop. That ends this run.
-2. Otherwise tell the job seeker the pipeline Stages aren't built yet and stop.
+Branch on the first argument:
+
+- **`setup`**: read `${CLAUDE_SKILL_DIR}/../setup/SKILL.md` and follow it, passing on any further arguments.
+- **`preferences`**: see Preferences below.
+- **anything else** (no argument, or a Stage name): run the pipeline.
+
+### Pipeline
+
+1. Run `run start <stage>`, with `<stage>` being `pipeline` for no argument or the Stage name given. It is the entry gate: it refuses when the Profile is incomplete (relay the message; it sends the job seeker to `/job-butler:setup`), when Preferences are invalid, or when another session's run is in progress. On success keep `run_id`.
+2. Tell the job seeker the pipeline Stages aren't built yet.
+3. Run `run end --run <run_id>`, unless `joined` was true. Run it whenever the run stops after step 1, including on an error.
+
+### Preferences
+
+1. Run `preferences get` and show the job seeker their settings in plain words.
+2. Ask what to change. For each change run `preferences set <setting> <value>`, using a name from `settings`. A `LOCKED` refusal means a run is in progress: relay it and stop.
+3. Show the changed settings.
