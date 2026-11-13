@@ -60,6 +60,16 @@ _Avoid_: Canned answers, form defaults
 The job seeker's explicit yes on one outward-facing action, such as submitting an Application or sending a message.
 _Avoid_: Confirmation, sign-off
 
+### Applying
+
+**Fill plan**:
+The per-field list of values Apply intends to enter in one Application's form. It is built before any browser action and checked against the form on read-back.
+_Avoid_: Form data, answers
+
+**Handover**:
+The point where Apply stops and the job seeker reviews every filled field in the visible browser before clicking Submit themselves.
+_Avoid_: Hand-off, review step
+
 ### Pipeline records
 
 **Pipeline state**:
