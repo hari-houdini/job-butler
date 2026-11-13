@@ -47,6 +47,18 @@ export interface EventLogEntry {
   to: Status;
   reason: string;
   approval: EventApproval | null;
+  /** The mail that prompted the change (Track): the Decision tree's outcome node cites it. */
+  message?: EventMessage;
+}
+
+export interface EventMessage {
+  id: string;
+  thread_id: string;
+  from: string;
+  subject: string;
+  received_at: string;
+  classification: string;
+  matched_by: string;
 }
 
 /** The Listing must be on the Shortlist right now to be picked. */
