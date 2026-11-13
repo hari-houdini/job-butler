@@ -10,6 +10,15 @@
 // See docs/agents/core-conventions.md, "Screen".
 import { join } from "node:path";
 import { applicationsByListing } from "./application.ts";
+import {
+  LIMIT_CHECK,
+  type LimitEvaluation,
+  type LimitGroup,
+  limitStep,
+  liveEvaluation,
+  loadLimitWorld,
+  suggestSlots,
+} from "./application-limit.ts";
 import { treePath, writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
@@ -19,7 +28,13 @@ import { readRunLock } from "./lock.ts";
 import { assertProfileComplete, readProfile } from "./profile.ts";
 import { reapplyRestore } from "./restore.ts";
 import { denyStep, scamStep } from "./scam-gate.ts";
-import { type Check, marksFor, notReached, type ScreenStep } from "./screen-check.ts";
+import {
+  type Check,
+  marksFor,
+  notReached,
+  type ScreenStep,
+  type ScreenWorld,
+} from "./screen-check.ts";
 import { getRecord, listRecords, type StoredRecord, withWriter } from "./store.ts";
 import { isObject, type Problems } from "./validate.ts";
 
@@ -28,7 +43,7 @@ import { isObject, type Problems } from "./validate.ts";
  *   scam gate and deny list (#39, effect "exclude"), ghost score (#39, "flag"),
  *   Sponsorship (#41, "flag"/"badge"), fit (#34), Application limit (#42, "flag"/"badge").
  */
-export const SCREEN_STEPS: ScreenStep[] = [scamStep, denyStep, ghostStep, fitStep];
+export const SCREEN_STEPS: ScreenStep[] = [scamStep, denyStep, ghostStep, fitStep, limitStep];
 
 /** What `screen` holds on a Listing. */
 export interface ScreenResult {
@@ -126,6 +141,7 @@ function runSteps(
   listing: StoredRecord,
   profile: Record<string, unknown>,
   judgment: Judgment,
+  world: ScreenWorld,
   now: string,
 ): Pick<ScreenResult, "outcome" | "excluded_by" | "checks" | "flags" | "badges"> &
   Record<string, unknown> {
@@ -138,6 +154,7 @@ function runSteps(
       listing,
       profile,
       judgment: step.judgment ? judgment[step.judgment.key] : undefined,
+      world,
       now,
     });
     Object.assign(stored, result.stored);
@@ -170,6 +187,7 @@ export async function screenRecord(dataDir: string, input: unknown) {
   return withWriter(dataDir, "screen record", async (w) => {
     const now = timestamp();
     const runId = (await readRunLock(dataDir))?.run_id ?? null;
+    const world = await loadLimitWorld(dataDir);
     const todo: { listing: StoredRecord; judgment: Judgment }[] = [];
     for (const judgment of judgments) {
       const listing = await getRecord(dataDir, "listing", judgment.listing_id);
@@ -200,7 +218,7 @@ export async function screenRecord(dataDir: string, input: unknown) {
         screened_at: now,
         run_id: runId,
         rescore_requested_at: null,
-        ...runSteps(listing, profile, judgment, now),
+        ...runSteps(listing, profile, judgment, world, now),
       } as ScreenResult) as ScreenResult;
       await w.put("listing", listing.id, {
         ...listing,
@@ -263,6 +281,10 @@ export interface ShortlistItem {
   band: string;
   flags: string[];
   badges: string[];
+  /** Application limits (#42): one of the top-fit Listings for a company's remaining slots. */
+  suggested: boolean;
+  /** Set when the company has more Shortlisted Listings than slots left. */
+  group: LimitGroup | null;
 }
 
 function letter(i: number): string {
@@ -282,14 +304,23 @@ export async function rankShortlist(dataDir: string): Promise<ShortlistItem[]> {
     return s?.outcome === "shortlist" && l.gone !== true && !picked.has(l.id) && !l.application_id;
   });
   const key = (l: StoredRecord) => screenOf(l) as ScreenResult;
+  // Application limits (#42) are judged against today's Applications, not Screen's snapshot.
+  const limits = await liveLimits(dataDir, on);
+  const flagsOf = (l: StoredRecord) => marksWithLimit(key(l).flags, limits.get(l.id), "over");
+  const badgesOf = (l: StoredRecord) =>
+    marksWithLimit(key(l).badges, limits.get(l.id), "last_slot");
   on.sort((x, y) => {
-    const fx = key(x).flags.length > 0 ? 1 : 0;
-    const fy = key(y).flags.length > 0 ? 1 : 0;
+    const fx = flagsOf(x).length > 0 ? 1 : 0;
+    const fy = flagsOf(y).length > 0 ? 1 : 0;
     if (fx !== fy) return fx - fy;
     const d = (key(y).fit?.score ?? 0) - (key(x).fit?.score ?? 0);
     if (d !== 0) return d;
     return `${x.company} ${x.title} ${x.id}` < `${y.company} ${y.title} ${y.id}` ? -1 : 1;
   });
+  const slots = suggestSlots(
+    on.map((l) => ({ id: l.id, company: String(l.company) })),
+    limits,
+  );
   return on.map((l, i) => ({
     letter: letter(i),
     id: l.id,
@@ -298,9 +329,38 @@ export async function rankShortlist(dataDir: string): Promise<ShortlistItem[]> {
     location: (l.location as string | null) ?? null,
     fit: key(l).fit?.score ?? 0,
     band: key(l).fit?.band ?? "weak",
-    flags: key(l).flags.map((f) => f.label),
-    badges: key(l).badges.map((b) => b.label),
+    flags: flagsOf(l),
+    badges: badgesOf(l),
+    suggested: slots.get(l.id)?.suggested ?? false,
+    group: slots.get(l.id)?.group ?? null,
   }));
+}
+
+/** Each Listing's standing against its Application limit now (empty when Screen can't tell). */
+async function liveLimits(dataDir: string, listings: StoredRecord[]) {
+  const out = new Map<string, LimitEvaluation>();
+  if (listings.length === 0) return out;
+  let world: Awaited<ReturnType<typeof loadLimitWorld>>;
+  try {
+    world = await loadLimitWorld(dataDir);
+  } catch (e) {
+    // No Preferences (a view outside a run): keep Screen's stored limit marks.
+    if (e instanceof CoreError && e.code.startsWith("PREFERENCES_")) return out;
+    throw e;
+  }
+  for (const l of listings) out.set(l.id, liveEvaluation(l, world, timestamp()));
+  return out;
+}
+
+/** The stored marks without the limit's, plus the live limit's when it has that status. */
+function marksWithLimit(
+  stored: { check: string; label: string }[],
+  live: LimitEvaluation | undefined,
+  status: "over" | "last_slot",
+): string[] {
+  if (live === undefined) return stored.map((m) => m.label);
+  const others = stored.filter((m) => m.check !== LIMIT_CHECK).map((m) => m.label);
+  return live?.status === status ? [...others, live.label] : others;
 }
 
 /** The replies the digest takes in #34; later tickets add theirs (approve, show excluded, restore). */
@@ -324,10 +384,24 @@ export async function digest(dataDir: string) {
       : "SHORTLIST (0)  nothing to pick right now",
   );
   for (const s of shortlist) {
-    const marks = [...s.flags, ...s.badges].map((m) => `[${m}]`).join(" ");
+    const marks = [...s.flags, ...s.badges, ...(s.suggested ? ["suggested"] : [])]
+      .map((m) => `[${m}]`)
+      .join(" ");
     lines.push(
       `  ${s.letter}) ${String(s.fit).padStart(2)} ${s.band.padEnd(8)} ${s.company.padEnd(18)} ` +
         `${s.title.padEnd(34)} ${s.location ?? ""}${marks ? `  ${marks}` : ""}`.trimEnd(),
+    );
+  }
+  const groups = new Map<string, ShortlistItem[]>();
+  for (const s of shortlist.filter((x) => x.group)) {
+    groups.set(s.company, [...(groups.get(s.company) ?? []), s]);
+  }
+  for (const [company, items] of groups) {
+    const g = items[0]?.group as LimitGroup;
+    const picks = items.filter((i) => i.suggested).map((i) => i.letter);
+    lines.push(
+      `  ${company}: ${g.members} Listings for ${g.slots} slot${g.slots === 1 ? "" : "s"} left; ` +
+        `suggested: ${picks.join(", ")}`,
     );
   }
   lines.push(`EXCLUDED (${excluded})${excluded > 0 ? "  collapsed · reply: show excluded" : ""}`);

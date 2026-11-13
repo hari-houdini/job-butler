@@ -395,11 +395,16 @@ export const commands: Record<string, Command> = {
   },
 
   "application pick": {
-    usage: "application pick <listing-id>...",
+    usage: "application pick <listing-id>... [--override-limit <listing-id>,...]",
     summary:
       "Shortlist-pick Checkpoint: create one Picked Application per Listing. Runs only under " +
-      "an Approval recorded with `approval record shortlist-pick` for this exact command.",
-    run: async ({ dataDir, args }) => ({ ...(await pickListings(dataDir, args)) }),
+      "an Approval recorded with `approval record shortlist-pick` for this exact command. A " +
+      "Listing over its Application limit is refused unless named in --override-limit.",
+    run: async ({ dataDir, args, flags }) => ({
+      ...(await pickListings(dataDir, args, {
+        overrideLimit: (flags["override-limit"] ?? "").split(",").filter((x) => x !== ""),
+      })),
+    }),
   },
 
   "application status": {
