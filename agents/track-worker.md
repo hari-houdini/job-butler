@@ -16,7 +16,7 @@ Your prompt holds a Gmail query (`after:YYYY/MM/DD`) and `processed_ids`, the me
 ## Steps
 
 1. Search with `search_threads`, using the query plus job-mail terms, e.g. `after:2026/01/14 (application OR interview OR offer OR "your candidacy" OR "next steps" OR position OR role)`. Read each thread's messages with `get_thread`; use `get_message` for a body the thread view truncates.
-2. Skip every message whose ID is in `processed_ids`.
+2. Skip every message whose ID is in `processed_ids`, and every LinkedIn job-alert email (from `jobalerts-noreply@linkedin.com`): the alert worker reads those.
 3. Classify each remaining message from its text, as exactly one of:
    - `acknowledgement`: the employer confirms it received the application.
    - `rejection`: the employer declines, closes the role or chooses another candidate.

@@ -16,6 +16,7 @@ import { confirmSameJob, discoverBoards, splitMerged } from "./discover.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
+import { alertsWindow, recordAlerts } from "./alerts.ts";
 import { addLinkedInJobs, confirmLinkedInMatch, matchLinkedIn } from "./linkedin.ts";
 import { endRun, readRunLock, startRun } from "./lock.ts";
 import { httpGet } from "./net.ts";
@@ -390,6 +391,20 @@ export const commands: Record<string, Command> = {
       "Take pasted (or alert) LinkedIn jobs in as Listings, read their Target company's board " +
       'for the same title, and return the "LinkedIn match" questions for the discover-worker.',
     run: async (ctx) => ({ ...(await addLinkedInJobs(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "linkedin alerts window": {
+    usage: "linkedin alerts window",
+    summary: "The Gmail query the alert worker reads for LinkedIn job-alert emails, and the IDs already processed.",
+    run: async ({ dataDir }) => ({ ...(await alertsWindow(dataDir)) }),
+  },
+
+  "linkedin alerts record": {
+    usage: 'linkedin alerts record --input {"alerts": [{message_id, thread_id, received_at, jobs}]}',
+    summary:
+      "Take the alert worker's jobs in as LinkedIn Listings (intake alert) and record the " +
+      "alert messages in the Sync record so they are never read twice. Returns what `linkedin add` does.",
+    run: async (ctx) => ({ ...(await recordAlerts(ctx.dataDir, await ctx.readInput())) }),
   },
 
   "linkedin match": {

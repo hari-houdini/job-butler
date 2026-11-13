@@ -1,0 +1,52 @@
+{
+  "alerts": [
+    {
+      "message_id": "m-alert-1",
+      "thread_id": "t-alert-1",
+      "from": "LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>",
+      "subject": "\"account executive\": Greenhouse Software, Inc. - Enterprise Account Executive and 2 more jobs in London",
+      "received_at": "2026-11-12T06:30:00.000Z",
+      "jobs": [
+        {
+          "company": "Greenhouse Software, Inc.",
+          "title": "Enterprise Account Executive",
+          "location": "London, England, United Kingdom",
+          "url": "https://www.linkedin.com/comm/jobs/view/4012345678/?trackingId=abc%3D%3D&refId=xyz&midToken=AQE&trk=eml-jobs_jymbii_digest"
+        },
+        {
+          "company": "Northwind Traders",
+          "title": "Account Executive, Mid-Market",
+          "location": "London, England, United Kingdom",
+          "url": "https://www.linkedin.com/comm/jobs/view/4023456789/?trackingId=def%3D%3D&trk=eml-jobs_jymbii_digest"
+        },
+        {
+          "company": "Greenhouse Software, Inc.",
+          "title": "Strategic Consultant I",
+          "location": "London, England, United Kingdom",
+          "url": "https://www.linkedin.com/comm/jobs/view/4034567890/?trackingId=ghi%3D%3D&trk=eml-jobs_jymbii_digest"
+        }
+      ]
+    },
+    {
+      "message_id": "m-alert-2",
+      "thread_id": "t-alert-2",
+      "from": "LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>",
+      "subject": "\"account executive\": Enterprise Account Executive at Greenhouse Software, Inc. and 1 more job",
+      "received_at": "2026-11-13T06:30:00.000Z",
+      "jobs": [
+        {
+          "company": "Greenhouse Software, Inc.",
+          "title": "Enterprise Account Executive",
+          "location": "London, England, United Kingdom",
+          "url": "https://www.linkedin.com/comm/jobs/view/4012345678/?trackingId=jkl%3D%3D&trk=eml-jobs_jymbii_digest"
+        },
+        {
+          "company": "Contoso Ltd",
+          "title": "Sales Development Representative",
+          "location": null,
+          "url": "https://www.linkedin.com/comm/jobs/view/4045678901/?trackingId=mno%3D%3D&trk=eml-jobs_jymbii_digest"
+        }
+      ]
+    }
+  ]
+}
