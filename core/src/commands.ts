@@ -25,6 +25,14 @@ import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
+import {
+  approveStatus,
+  trackDigest,
+  trackDismiss,
+  trackPropose,
+  trackRecord,
+  trackWindow,
+} from "./track.ts";
 import { openView, regenerateView } from "./view.ts";
 
 export const commands: Record<string, Command> = {
@@ -298,6 +306,50 @@ export const commands: Record<string, Command> = {
       "Shortlist-pick Checkpoint: create one Picked Application per Listing. Runs only under " +
       "an Approval recorded with `approval record shortlist-pick` for this exact command.",
     run: async ({ dataDir, args }) => ({ ...(await pickListings(dataDir, args)) }),
+  },
+
+  "application status": {
+    usage: "application status <application-id> <status> <n>",
+    summary:
+      "Digest-status Checkpoint: apply Track's proposal <n>. Runs only under an Approval " +
+      "recorded with `approval record digest-status` for this exact command.",
+    run: async ({ dataDir, args }) => ({ ...(await approveStatus(dataDir, args)) }),
+  },
+
+  "track window": {
+    usage: "track window",
+    summary: "The Gmail date window the track worker reads, from the Sync record.",
+    run: async ({ dataDir }) => ({ ...(await trackWindow(dataDir)) }),
+  },
+
+  "track record": {
+    usage: 'track record --input {"messages": [...]}',
+    summary:
+      "Record the track worker's classifications: dedupe against the Sync record, match each " +
+      "message to an Application, and propose Status changes (nothing changes until approved).",
+    async run(ctx) {
+      return { ...(await trackRecord(ctx.dataDir, await ctx.readInput())) };
+    },
+  },
+
+  "track propose": {
+    usage: 'track propose <application-id> <withdrawn|no_response> --input {"reason": "..."}',
+    summary: "Propose a Status change that doesn't come from mail (Withdrawn, No response).",
+    async run(ctx) {
+      return { ...(await trackPropose(ctx.dataDir, ctx.args, await ctx.readInput())) };
+    },
+  },
+
+  "track digest": {
+    usage: "track digest",
+    summary: "The numbered Status-change proposals waiting for the job seeker's approval.",
+    run: async ({ dataDir }) => ({ ...(await trackDigest(dataDir)) }),
+  },
+
+  "track dismiss": {
+    usage: "track dismiss <n>...",
+    summary: "Drop proposals; their messages are remembered and not raised again.",
+    run: async ({ dataDir, args }) => ({ ...(await trackDismiss(dataDir, args)) }),
   },
 
   "discover confirm": {
