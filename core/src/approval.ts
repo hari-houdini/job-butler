@@ -40,7 +40,10 @@ export type GrantKind = "standing" | "sensitive" | "destructive";
  * Register destructive commands (delete, prune, overwrite) and anything that shares
  * personal data off the machine here, with their kind.
  */
-export const GATED_COMMANDS: Record<string, GrantKind> = {};
+export const GATED_COMMANDS: Record<string, GrantKind> = {
+  prune: "destructive",
+  "record delete": "destructive",
+};
 
 /** Outward connector tools the hook governs: default-deny within these namespaces. */
 export const GOVERNED_TOOL_PREFIXES = [

@@ -21,6 +21,7 @@ import { httpGet } from "./net.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
 import { assertProfileComplete, checkProfile, putProfile, readProfile } from "./profile.ts";
 import { importResume } from "./resume.ts";
+import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
 
@@ -115,6 +116,16 @@ export const commands: Record<string, Command> = {
       const type = assertRecordType(ctx.args[0]);
       return { records: await listRecords(ctx.dataDir, type) };
     },
+  },
+
+  "record delete": {
+    usage: "record delete <type> <id>...",
+    summary:
+      "Destructive, needs a grant: delete records on the job seeker's request, with their " +
+      "files (a Listing's Decision tree, an Application's Tailor folder). All or nothing.",
+    run: async ({ dataDir, args }) => ({
+      ...(await deleteRecords(dataDir, args[0], args.slice(1))),
+    }),
   },
 
   "run start": {
@@ -311,6 +322,23 @@ export const commands: Record<string, Command> = {
       }
       return { ...(await splitMerged(dataDir, listing, alias)) };
     },
+  },
+
+  // Retention (docs/agents/core-conventions.md, "Retention and deletion").
+  prune: {
+    usage: "prune",
+    summary:
+      "Destructive, needs a grant: remove Listings that never became Applications 90 days " +
+      "after their latest Sighting, with their Decision trees.",
+    run: async ({ dataDir }) => ({ ...(await prune(dataDir)) }),
+  },
+
+  "retention preview": {
+    usage: "retention preview",
+    summary:
+      "What `prune` would remove now (Listings, orphan Decision trees, temp files), so the " +
+      "job seeker can see it before agreeing. Changes nothing.",
+    run: async ({ dataDir }) => ({ ...(await previewPrune(dataDir)) }),
   },
 
   // Approval (docs/agents/core-conventions.md, "Approval").

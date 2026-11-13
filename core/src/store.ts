@@ -29,7 +29,8 @@ export interface StoredRecord {
   [field: string]: unknown;
 }
 
-const TMP_MARKER = ".tmp-";
+/** Marks a temporary file from `writeThenReplace`: `<file>.tmp-<pid>`. */
+export const TMP_MARKER = ".tmp-";
 
 export function assertRecordType(type: string | undefined): RecordType {
   if (!RECORD_TYPES.includes(type as RecordType)) {
