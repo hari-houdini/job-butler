@@ -8,7 +8,7 @@ How the plugin and the deterministic core are laid out, set by ticket #30. Follo
 .claude-plugin/   plugin.json + marketplace.json (repo root is the plugin root)
 skills/<name>/    SKILL.md per skill; skills/job-butler is the /job-butler entry point
 agents/           worker subagents, one per Stage (add when the first one lands)
-hooks/hooks.json  the Approval PreToolUse hook (add with the Approval ticket; it calls the core)
+hooks/hooks.json  the Approval PreToolUse hook and a SessionStart hook; both call the core
 core/src/         the TypeScript core: cli.ts (entry), commands.ts (registry), one module per concern
 core/test/        *.test.ts, harness.ts, fixtures/
 ```
@@ -23,7 +23,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
 ## CLI
 
 - Commands are words, longest match wins (`help` lists them all): e.g. `status`, `record put|get|list`, `run start|end|status`, `profile put|get|check`, `preferences init|get|set`. Add a command by adding an entry to `core/src/commands.ts` that calls a module in `core/src/`. Name multi-word commands `<noun> <verb>` (e.g. `listing upsert`, `lock status`).
-- **Output:** exactly one JSON object on stdout, nothing else. Use snake_case keys.
+- **Output:** exactly one JSON object on stdout, nothing else. Use snake_case keys. (Exception: `hook ...` commands set `raw: true` and print Claude Code's hook JSON instead.)
   - success: `{"ok": true, ...}`, exit 0
   - refusal: `{"ok": false, "error": {"code": "LOCKED", "message": "..."}}`, exit 1. Throw `CoreError(code, message, details?)`; codes are SCREAMING_SNAKE. `message` is for the job seeker: what happened and what to do. Skills relay it as written.
   - usage: `usageError(...)`, code `USAGE`, exit 2. Unexpected crash: code `INTERNAL`, exit 70.
@@ -35,10 +35,11 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_GH`: the `gh` executable.
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
+  - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
 
 ## Data directory and pipeline store (ADR 0001)
 
-- Profile at `<data>/profile.yaml`, Preferences at `<data>/preferences.yaml`, resume copies in `<data>/sources/`. Pipeline records at `<data>/pipeline/<type>/<encodeURIComponent(id)>.json`. Types: `listing`, `application`, `employer`, `discover-run`, `sync` (add new ones to `RECORD_TYPES` in `store.ts`).
+- Profile at `<data>/profile.yaml`, Preferences at `<data>/preferences.yaml`, resume copies in `<data>/sources/`. Pipeline records at `<data>/pipeline/<type>/<encodeURIComponent(id)>.json`. Types: `listing`, `application`, `employer`, `discover-run`, `sync`, `approval` (add new ones to `RECORD_TYPES` in `store.ts`). Standing grants live in `<data>/grants.json`; session marks in `<data>/sessions/`.
 - The store sets `schema_version` (1), `id`, `created_at` and `updated_at` (ISO 8601 UTC) on every record; callers pass only the record's own fields. Every other timestamp you store is ISO 8601 UTC from `timestamp()` too.
 - Write only through `withWriter(dataDir, command, fn)`: it runs the data-directory safety checks, takes the lock, clears temp files left by an interrupted write, and releases the lock. Put all of one command's writes in one `withWriter` call, and prefer one CLI call per batch over one call per record (each call re-runs the git and `gh` checks).
 - Any other file you write into the data directory (Preferences, grants, rendered pages) goes through `writeThenReplace` and, if it is pipeline state, inside `withWriter`; a file that must not change mid-run (Profile, Preferences) goes inside `withEditLock`.
@@ -55,6 +56,43 @@ core/test/        *.test.ts, harness.ts, fixtures/
 - Profile (`profile.ts`): human-editable YAML, written only through `profile put [--section <name>]` (setup). Sections: `identity`, `base_resume`, `targets`, `sponsorship`, `filters` (with `target_companies`), `autonomy`, `answer_bank`, plus `companies_house_key`. Validation refuses unknown keys, so a new field means adding it to the section's check. Completeness rules live in `missingFields`. Read it with `profile get [--section]`.
 - Preferences (`preferences.ts`): every setting written out by `preferences init`; changed by `preferences set <dotted.setting> <value>`. A missing, unknown or out-of-range setting is `PREFERENCES_INVALID`, never a default. Add a setting by adding it to `PREFERENCES_DEFAULTS`, `preferencesProblems` and (optionally) `COMMENTS`. Rewriting the file regenerates its comments; hand-written comments are not kept.
 - YAML (`yaml.ts`) is a small dependency-free subset: block mappings and sequences, comments, quoted and plain scalars, `[a, b]`, and `|` / `>` block text. Anything else refuses with its line number.
+
+## Approval (ticket #32)
+
+Two layers: the Stage skill asks at the Checkpoint, and the PreToolUse hook (`hook pre-tool-use`, code in `core/src/hook.ts`, rules in `core/src/approval.ts`) blocks what no Approval or grant covers. The hook only ever denies; when it doesn't block it prints `{}`, so Claude Code's own permission rules still apply. Anything it can't decide (unreadable tool call, Approval record, grants file or session mark) denies, with a reason Claude relays. If the core can't run at all, the `hooks.json` command exits 2, which also blocks.
+
+### What the hook gates
+
+- **Checkpoint commands:** core CLI calls listed in `CHECKPOINT_COMMANDS` (`approval.ts`). Today: `application pick` → `shortlist-pick`, `application status` → `digest-status`, `application submitted` → `handover`. The hook finds each `core/src/cli.ts` invocation in a Bash command, takes its positional arguments (flags dropped) as the **action**, e.g. `application status app-1 interview`, and needs an unspent Approval in this session that lists that exact action. It spends the action as it lets the call through. Shell substitution (`$(…)`, backticks, `eval`, `xargs`) or `$VAR` in the command words is denied.
+- **Gated commands:** `GATED_COMMANDS` maps a core command to its grant kind (`standing`, `sensitive`, `destructive`). These run only under an active grant. Empty today; #53 registers `prune` and delete commands as `destructive`.
+- **Connector tools** (`mcp__claude_ai_Gmail__*`, `mcp__claude_ai_Google_Calendar__*`): default-deny with the `READ_ONLY_TOOLS` allowlist, but only in sessions where Job Butler has run (a core call or a `job-butler` Skill call marks the session in `<data>/sessions/`). Other sessions are left alone so the plugin doesn't take over the job seeker's mailbox everywhere. Anything not on the allowlist needs an active grant.
+- **Write, Edit, MultiEdit, NotebookEdit** into `<data>/pipeline/`, `<data>/sessions/`, `grants.json` or `pipeline.lock`: always denied. Only the core changes those.
+
+### How a Stage skill requests and records an Approval (#34, #45, #48)
+
+1. Build the Checkpoint command so its targets are **positional arguments**, not inside `--input` (the hook can't see file contents). One action is the command plus all its positionals: `application pick greenhouse:acme:123`. Register the command in `CHECKPOINT_COMMANDS` with its Checkpoint.
+2. At the Checkpoint, show the job seeker exactly what will happen and ask. No yes, no record.
+3. After their yes, record it, listing every action you will run:
+   ```sh
+   node "${CLAUDE_SKILL_DIR}/../../core/src/cli.ts" approval record shortlist-pick \
+     --session "${CLAUDE_SESSION_ID}" --input - <<< '{"actions": ["application pick greenhouse:acme:123", "application pick lever:beta:9"]}'
+   ```
+   `--session` may be left out when `JOB_BUTLER_SESSION_ID` is set. Actions from another Checkpoint refuse with `ACTION_NOT_AT_CHECKPOINT`; no session refuses with `NO_SESSION`.
+4. Run each action as its own written-out core command. Each is allowed once; a second run, or a run in a later session, is denied (`already used` / `has expired`), and you must ask again.
+5. In the command's Event log entry, cite the Approval: `approvalUsedFor(dataDir, action)` returns the record whose action the hook just spent (its `id`, `checkpoint`, `approved_at`).
+
+Approval record (`pipeline/approval/<uuid>.json`): `checkpoint`, `session_id`, `approved_at`, `actions: [{action, spent_at}]`. `approval list [--session]` shows each as `active`, `spent` or `expired`.
+
+### Standing grants
+
+- `grant add <scope> --session <id>` after the job seeker asks for one; `grant list [--session]`; `grant revoke <id>`. A scope is one gated tool name or one `GATED_COMMANDS` entry, exactly. Checkpoint commands refuse (`CHECKPOINT_NEEDS_APPROVAL`): autonomy is off in v1. Read-only or ungated scopes refuse (`GRANT_SCOPE_UNKNOWN`).
+- The core sets `kind` from the scope: words like delete, trash, prune, overwrite, remove → `destructive`; send, reply, forward, draft, respond, share, `create_event`, `update_event` → `sensitive`; else `standing`. Sensitive and destructive grants work only in the session that recorded them. Revoked grants stay in the file with `revoked_at`.
+- On each reuse the hook counts it (`uses`, `last_used_at`) and tells the job seeker through `systemMessage`, naming the grant and how to revoke it.
+- File: `<data>/grants.json` = `{"schema_version": 1, "grants": [{id, scope, kind, granted_at, session_id, revoked_at, uses, last_used_at}]}`, written under the lock.
+
+### Testing it
+
+Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool_name`, `tool_input`) and read `hookSpecificOutput.permissionDecision` (`"deny"`, else not blocked). See `core/test/approval.test.ts`.
 
 ## Network
 

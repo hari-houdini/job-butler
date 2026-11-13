@@ -29,6 +29,15 @@ export function networkFixturesDir(): string | undefined {
   return process.env.JOB_BUTLER_NETWORK_FIXTURES;
 }
 
+/**
+ * The Claude Code session a command runs in: --session, else JOB_BUTLER_SESSION_ID (set for
+ * Bash by the SessionStart hook through CLAUDE_ENV_FILE). Undefined when neither is given.
+ */
+export function sessionId(flag: string | undefined): string | undefined {
+  const id = flag ?? process.env.JOB_BUTLER_SESSION_ID;
+  return id === undefined || id === "" ? undefined : id;
+}
+
 /** Fault injection for tests, e.g. JOB_BUTLER_FAULT=crash-before-replace. */
 export function fault(name: string): boolean {
   return process.env.JOB_BUTLER_FAULT === name;
