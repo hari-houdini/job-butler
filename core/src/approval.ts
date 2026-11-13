@@ -51,6 +51,31 @@ export const GOVERNED_TOOL_PREFIXES = [
   "mcp__claude_ai_Google_Calendar__",
 ];
 
+/**
+ * Playwright tools that act on a page (click, type, press a key, run code). While Apply runs
+ * the core fills the form and the job seeker clicks Submit, so the hook blocks these (#45).
+ * Reading tools (snapshot, screenshot, tabs) are left alone.
+ */
+export const BROWSER_PREFIXES = ["mcp__plugin_playwright_playwright__", "mcp__playwright__"];
+export const BROWSER_ACTING_TOOLS = new Set([
+  "browser_click",
+  "browser_drag",
+  "browser_drop",
+  "browser_evaluate",
+  "browser_file_upload",
+  "browser_fill_form",
+  "browser_handle_dialog",
+  "browser_press_key",
+  "browser_run_code_unsafe",
+  "browser_select_option",
+  "browser_type",
+]);
+
+export function isActingBrowserTool(tool: string): boolean {
+  const prefix = BROWSER_PREFIXES.find((p) => tool.startsWith(p));
+  return prefix !== undefined && BROWSER_ACTING_TOOLS.has(tool.slice(prefix.length));
+}
+
 /** The read-only allowlist: the only governed tools that run without a grant. */
 export const READ_ONLY_TOOLS = new Set([
   "mcp__claude_ai_Gmail__search_threads",

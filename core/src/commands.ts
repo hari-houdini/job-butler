@@ -1,5 +1,7 @@
 // The command registry. Each later ticket adds its commands here, implemented in its own module.
 import { pickListings } from "./application.ts";
+import { applicationSubmitted, applyAnswer, applyPlan, applyPrepare } from "./apply.ts";
+import { applyClose, applyFill, applyHandover } from "./apply-fill.ts";
 import {
   addGrant,
   approvalState,
@@ -408,6 +410,66 @@ export const commands: Record<string, Command> = {
       "Digest-status Checkpoint: apply Track's proposal <n>. Runs only under an Approval " +
       "recorded with `approval record digest-status` for this exact command.",
     run: async ({ dataDir, args }) => ({ ...(await approveStatus(dataDir, args)) }),
+  },
+
+  "apply prepare": {
+    usage: "apply prepare [<application-id>...]",
+    summary:
+      "Read each Tailored, Ready to apply or Paused Application's Greenhouse form and give the " +
+      "apply worker its material. A missing posting pauses the Application; a LinkedIn-only " +
+      "Listing comes back in by_hand with the link.",
+    run: async ({ dataDir, args }) => ({ ...(await applyPrepare(dataDir, args)) }),
+  },
+
+  "apply plan": {
+    usage: "apply plan <application-id> --input <file>|- (the apply worker's JSON)",
+    summary:
+      "Check the worker's Fill plan against the form, Profile, Answer bank and Tailor files and " +
+      "store it on the Application. An unmappable field pauses it with the partial plan kept.",
+    async run(ctx) {
+      return { ...(await applyPlan(ctx.dataDir, ctx.args[0], await ctx.readInput())) };
+    },
+  },
+
+  "apply answer": {
+    usage: 'apply answer <application-id> <field-name> --input {"answer": "..."}',
+    summary:
+      "Store the job seeker's answer to an unmappable field on this Application only (never in " +
+      "the Answer bank) and add it to the Fill plan.",
+    async run(ctx) {
+      return { ...(await applyAnswer(ctx.dataDir, ctx.args, await ctx.readInput())) };
+    },
+  },
+
+  "apply fill": {
+    usage: "apply fill <application-id>",
+    summary:
+      "Fill the Application's form in a visible browser from its Fill plan, read every field back " +
+      "and compare. Never clicks Submit: a control that would submit pauses the Application. " +
+      "Outcome filled, blocked (mismatch, empty required field, voice rule) or paused.",
+    run: async ({ dataDir, args }) => ({ ...(await applyFill(dataDir, args[0])) }),
+  },
+
+  "apply handover": {
+    usage: "apply handover <application-id>",
+    summary:
+      "Show every field and attached file for review and move a clean, read-back Application to " +
+      "Handover. Blocked while any mismatch, empty required field or voice-rule violation stands.",
+    run: async ({ dataDir, args }) => ({ ...(await applyHandover(dataDir, args[0])) }),
+  },
+
+  "apply close": {
+    usage: "apply close <application-id>",
+    summary: "Close the browser Apply left open and delete its ephemeral profile.",
+    run: async ({ dataDir, args }) => ({ ...(await applyClose(dataDir, args[0])) }),
+  },
+
+  "application submitted": {
+    usage: "application submitted <application-id>",
+    summary:
+      "Handover Checkpoint: record Submitted after the job seeker confirms they clicked Submit. " +
+      "Runs only under an Approval recorded with `approval record handover` for this exact command.",
+    run: async ({ dataDir, args }) => ({ ...(await applicationSubmitted(dataDir, args)) }),
   },
 
   "track window": {

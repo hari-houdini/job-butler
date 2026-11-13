@@ -52,3 +52,23 @@ export function openerCommand(): string {
       ? "explorer"
       : "xdg-open";
 }
+
+/** Which page driver Apply fills with: "fake" (tests: a scripted page) or the real browser. */
+export function browserDriver(): "fake" | "playwright" {
+  return process.env.JOB_BUTLER_BROWSER === "fake" ? "fake" : "playwright";
+}
+
+/** The scripted page the fake driver plays (tests). */
+export function fakePageFile(): string | undefined {
+  return process.env.JOB_BUTLER_FAKE_PAGE;
+}
+
+/** Path to an existing `playwright-core` entry file, used instead of the bare package name. */
+export function playwrightEntry(): string | undefined {
+  return process.env.JOB_BUTLER_PLAYWRIGHT || undefined;
+}
+
+/** Run the browser without a window (tests, CI). Apply's default is a visible window. */
+export function browserHeadless(): boolean {
+  return process.env.JOB_BUTLER_BROWSER_HEADLESS === "1";
+}

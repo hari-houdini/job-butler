@@ -213,5 +213,20 @@
     "status": 403,
     "content_type": "text/html; charset=UTF-8",
     "file": "careers-blocked.html"
+  },
+  "https://boards-api.greenhouse.io/v1/boards/acme/jobs/101?questions=true": {
+    "status": 200,
+    "content_type": "application/json",
+    "file": "greenhouse-form-101.json"
+  },
+  "https://boards-api.greenhouse.io/v1/boards/acme/jobs/102?questions=true": {
+    "status": 200,
+    "content_type": "application/json",
+    "file": "greenhouse-form-102.json"
+  },
+  "https://boards-api.greenhouse.io/v1/boards/acme/jobs/404?questions=true": {
+    "status": 404,
+    "content_type": "application/json",
+    "file": "greenhouse-form-missing.json"
   }
 }

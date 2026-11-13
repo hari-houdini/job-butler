@@ -1,0 +1,32 @@
+{
+  "fields": [
+    { "name": "first_name", "value": "Ada", "source": { "kind": "identity", "ref": "first_name" } },
+    {
+      "name": "last_name",
+      "value": "Example",
+      "source": { "kind": "identity", "ref": "last_name" }
+    },
+    {
+      "name": "email",
+      "value": "ada@example.com",
+      "source": { "kind": "identity", "ref": "email" }
+    },
+    {
+      "name": "phone",
+      "value": "+44 7700 900123",
+      "source": { "kind": "identity", "ref": "phone" }
+    },
+    {
+      "name": "resume",
+      "value": "Ada-Example-Resume.docx",
+      "source": { "kind": "tailor", "ref": "resume" }
+    },
+    { "name": "question_1002", "value": "No", "source": { "kind": "answer_bank", "ref": 0 } },
+    {
+      "name": "question_1003",
+      "value": "Found the role on the Acme careers page.",
+      "source": { "kind": "written", "basis": "The advert came from Acme's own board." }
+    }
+  ],
+  "unmappable": []
+}

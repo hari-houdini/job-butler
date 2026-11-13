@@ -20,6 +20,7 @@ import {
   GATED_COMMANDS,
   type Grant,
   grantsPath,
+  isActingBrowserTool,
   isGovernedTool,
   READ_ONLY_TOOLS,
   spendApproval,
@@ -27,7 +28,7 @@ import {
 } from "./approval.ts";
 import { resolveDataDir, timestamp } from "./env.ts";
 import { CoreError } from "./errors.ts";
-import { lockPath } from "./lock.ts";
+import { lockPath, readRunLock } from "./lock.ts";
 
 export type HookOutput = Record<string, unknown>;
 
@@ -73,6 +74,7 @@ export async function preToolUse(rawInput: string, dataDirFlag: string | undefin
       if (session !== "") await markSession(dataDir, session);
       return NO_OPINION;
     }
+    if (isActingBrowserTool(tool)) return await browserTool(dataDir);
     if (isGovernedTool(tool)) return await connectorTool(dataDir, session, tool);
     return NO_OPINION;
   } catch (e) {
@@ -232,6 +234,16 @@ async function bashTool(dataDir: string, session: string, command: string): Prom
 
 // ---------------------------------------------------------------------------------------
 // Connector tools: default-deny with the read-only allowlist, in Job Butler sessions.
+
+/** Apply never clicks Submit: while it runs, page-acting browser tools are blocked. */
+async function browserTool(dataDir: string): Promise<HookOutput> {
+  const run = await readRunLock(dataDir);
+  if (run === undefined || !["apply", "pipeline"].includes(run.command)) return NO_OPINION;
+  return deny(
+    "Apply fills forms through `apply fill` and never clicks Submit; the job seeker clicks it " +
+      "themselves at the Handover. Use `apply fill <application-id>` instead of driving the page by hand.",
+  );
+}
 
 async function connectorTool(dataDir: string, session: string, tool: string): Promise<HookOutput> {
   if (session === "" || !(await isMarked(dataDir, session))) return NO_OPINION;
