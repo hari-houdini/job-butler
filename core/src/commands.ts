@@ -1,4 +1,5 @@
 // The command registry. Each later ticket adds its commands here, implemented in its own module.
+import { pickListings } from "./application.ts";
 import {
   addGrant,
   approvalState,
@@ -21,6 +22,7 @@ import { httpGet } from "./net.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
 import { assertProfileComplete, checkProfile, putProfile, readProfile } from "./profile.ts";
 import { importResume } from "./resume.ts";
+import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
 
 export const commands: Record<string, Command> = {
@@ -239,6 +241,51 @@ export const commands: Record<string, Command> = {
       if (url === undefined) throw usageError("board detect: <url> is required");
       return { ...(await detectBoard(url)) };
     },
+  },
+
+  // Screen (docs/agents/core-conventions.md, "Screen").
+  "screen pending": {
+    usage: "screen pending",
+    summary:
+      "The Listings Screen still has to judge (new, or marked for rescore), with the Profile " +
+      "parts the screen worker rates against and the file to write its judgments to.",
+    run: async ({ dataDir }) => ({ ...(await screenPending(dataDir)) }),
+  },
+
+  "screen record": {
+    usage: 'screen record --input <file>|- ({"judgments": [{"listing_id", "skills_rating"}]})',
+    summary:
+      "Validate the screen worker's judgments, run every Screen check, store the results on " +
+      "each Listing, regenerate the Decision trees, and print the digest.",
+    run: async (ctx) => ({ ...(await screenRecord(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "screen rescore": {
+    usage: "screen rescore <listing-id>...|all",
+    summary:
+      "Only when the job seeker asks: mark screened Listings to be scored again; they show " +
+      "up in `screen pending` until `screen record` scores them.",
+    run: async ({ dataDir, args }) => ({ ...(await screenRescore(dataDir, args)) }),
+  },
+
+  "screen digest": {
+    usage: "screen digest",
+    summary: "The ranked Shortlist (lettered a, b, ...) with its terminal text and the replies.",
+    run: async ({ dataDir }) => ({ ...(await digest(dataDir)) }),
+  },
+
+  "screen why": {
+    usage: "screen why <letter|listing-id|application-id>",
+    summary: "One Listing's Screen checks with rule, result and evidence, and its tree's path.",
+    run: async ({ dataDir, args }) => ({ ...(await why(dataDir, args[0])) }),
+  },
+
+  "application pick": {
+    usage: "application pick <listing-id>...",
+    summary:
+      "Shortlist-pick Checkpoint: create one Picked Application per Listing. Runs only under " +
+      "an Approval recorded with `approval record shortlist-pick` for this exact command.",
+    run: async ({ dataDir, args }) => ({ ...(await pickListings(dataDir, args)) }),
   },
 
   "discover confirm": {
