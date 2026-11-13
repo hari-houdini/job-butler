@@ -45,30 +45,30 @@ export interface RunSource {
   error: { code: string; message: string } | null;
 }
 
-interface TargetCompany {
+export interface TargetCompany {
   name: string;
   board: Board;
 }
 
-async function targetCompanies(dataDir: string): Promise<TargetCompany[]> {
+export async function targetCompanies(dataDir: string): Promise<TargetCompany[]> {
   await assertProfileComplete(dataDir);
   const profile = await readProfile(dataDir);
   const filters = isObject(profile?.filters) ? profile.filters : {};
   return (filters.target_companies as TargetCompany[] | undefined) ?? [];
 }
 
-async function targetRoles(dataDir: string): Promise<string[]> {
+export async function targetRoles(dataDir: string): Promise<string[]> {
   const profile = await readProfile(dataDir);
   const targets = isObject(profile?.targets) ? profile.targets : {};
   return (targets.roles as string[] | undefined) ?? [];
 }
 
-interface BoardResult {
+export interface BoardResult {
   source: RunSource;
   postings: JobPosting[];
 }
 
-async function readBoard(company: TargetCompany, roles: string[]): Promise<BoardResult> {
+export async function readBoard(company: TargetCompany, roles: string[]): Promise<BoardResult> {
   const { board } = company;
   const base = { id: boardId(board), ats: board.ats, company: company.name };
   const reader = BOARD_READERS[board.ats];
