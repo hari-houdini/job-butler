@@ -32,6 +32,10 @@ _Avoid_: Recommendations, picks
 The job seeker's pursuit of one Listing, from shortlist through outcome; the unit the pipeline tracks.
 _Avoid_: Job, lead, opportunity
 
+**Fit score**:
+A 0–100 score, with written bands, of how well a Listing matches the Profile, with reasons cited per criterion. It ranks the Shortlist and never removes a Listing.
+_Avoid_: Match score, relevance, rating
+
 **Ghost job**:
 A Listing that is fake, stale, or never intended to be filled.
 _Avoid_: Faux job, fake job
@@ -95,6 +99,10 @@ _Avoid_: State, stage
 **Event log**:
 The append-only record of every Status change on an Application, with the Stage that made it and when.
 _Avoid_: History, audit trail
+
+**Decision tree**:
+A diagram of every check a Listing went through and the branch each one took, from Screen onwards and on into its Application. It is a view of what the pipeline already recorded, never a separate account of it.
+_Avoid_: Audit trail, explanation, reasoning trace
 
 **Sync record**:
 Track's record of how far it has read from one connector (Gmail, Google Calendar), so the next run only looks at new mail and events.
