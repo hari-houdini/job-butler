@@ -8,6 +8,7 @@ import {
   recordApproval,
   revokeGrant,
 } from "./approval.ts";
+import { detectBoard } from "./boards/detect.ts";
 import type { Command } from "./cli.ts";
 import { ensureSafeDataDir } from "./data-dir.ts";
 import { discoverBoards } from "./discover.ts";
@@ -226,6 +227,17 @@ export const commands: Record<string, Command> = {
       "Read every Target company's board, write the Discover run, add a Sighting to each " +
       "Listing seen (creating new ones) and mark gone the Listings missing from a board read.",
     run: async ({ dataDir }) => ({ ...(await discoverBoards(dataDir)) }),
+  },
+  "board detect": {
+    usage: "board detect <careers-or-board-url>",
+    summary:
+      "Find the ATS board (Greenhouse, Lever, Ashby, Workday) a career page links to, in the " +
+      "Profile's board shape, for setup to confirm with the job seeker. Writes nothing.",
+    async run({ args }) {
+      const [url] = args;
+      if (url === undefined) throw usageError("board detect: <url> is required");
+      return { ...(await detectBoard(url)) };
+    },
   },
 
   // Approval (docs/agents/core-conventions.md, "Approval").

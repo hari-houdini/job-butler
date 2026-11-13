@@ -40,11 +40,14 @@ Write a section with `profile put --section <name> --input -`, passing the secti
    - `relevant_phd`: `{value, stem}`.
 
    Ask for the category, and store only the flag: the job seeker's date of birth or visa expiry stays out of the conversation and the file. When they'd rather skip, write `flags: {}` and `flags_skipped: true`; Screen then uses the standard threshold.
-8. **filters.** Ask for `allow` and `deny` lists of `companies`, `titles` and `locations` (empty lists are fine). Then build `target_companies`, the companies whose boards Discover reads (separate from the allow list): for each, the `name`, the `careers_url` if known, and the `board` the job seeker enters by hand:
-   - Greenhouse, Lever or Ashby: `{ats, token}`, where the token is the first path segment of the board URL (`job-boards.greenhouse.io/<token>`, `jobs.lever.co/<token>`, `jobs.ashbyhq.com/<token>`). Lever's EU boards (`jobs.eu.lever.co`) add `region: "eu"`.
-   - Workday: `{ats: "workday", tenant, instance, site}` from `<tenant>.<instance>.myworkdayjobs.com/<site>`.
+8. **filters.** Ask for `allow` and `deny` lists of `companies`, `titles` and `locations` (empty lists are fine). Then build `target_companies`, the companies whose boards Discover reads (separate from the allow list): for each, the `name`, the `careers_url`, and the `board`.
+   1. Ask for the company's career page (or any job link of theirs) and run `board detect <url>`. Each entry in `boards` carries `board` in the Profile's shape, plus `links` and `evidence` showing where it was found. With several, the first is the most-linked.
+   2. When `boards` is empty or the call refuses `CAREERS_PAGE_UNAVAILABLE`, the job seeker enters the board by hand:
+      - Greenhouse, Lever or Ashby: `{ats, token}`, where the token is the first path segment of the board URL (`job-boards.greenhouse.io/<token>`, `jobs.lever.co/<token>`, `jobs.ashbyhq.com/<token>`). Lever's EU boards (`jobs.eu.lever.co`) add `region: "eu"`.
+      - Workday: `{ats: "workday", tenant, instance, site}` from `<tenant>.<instance>.myworkdayjobs.com/<site>`.
 
-   Read the board back to the job seeker and set `confirmed_at` once they confirm it.
+      A board URL they paste can go through `board detect` too: it is recognised without a fetch.
+   3. Read the board and its evidence back to the job seeker. Set `confirmed_at` once they confirm it; the board is then stored and never detected again.
 9. **autonomy.** Write `{"enabled": false, "caps": {}, "fit_threshold": 80, "lists": {}}` and tell the job seeker nothing runs on its own in this version.
 10. **answer_bank.** Collect answers to recurring form questions: right to work, notice, salary expectation, relocation, how they heard about the role. Add the diversity questions (gender, ethnicity, disability, veteran status, sexual orientation) with answer `Prefer not to say` and `kind: "diversity"`, and change one only when the job seeker asks. Answers given during Apply join the bank only here, when the job seeker asks to promote them.
 11. **companies_house_key.** Offer the optional Companies House API key: it is their own free key from developer.company-information.service.gov.uk, and it lets more employer matches reach high confidence. Write the key, or null.

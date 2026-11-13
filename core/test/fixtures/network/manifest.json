@@ -163,5 +163,55 @@
     "status": 404,
     "content_type": "application/json;charset=ISO-8859-1",
     "file": "workday/cxs-no-such-site.json"
+  },
+  "https://api.lever.co/v0/postings/leverdemo?mode=json": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "file": "lever-board.json"
+  },
+  "https://api.lever.co/v0/postings/jb-no-such-board?mode=json": {
+    "status": 404,
+    "content_type": "application/json; charset=utf-8",
+    "file": "lever-board-missing.json"
+  },
+  "https://api.ashbyhq.com/posting-api/job-board/Ashby?includeCompensation=true": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "file": "ashby-board.json"
+  },
+  "https://api.ashbyhq.com/posting-api/job-board/jb-no-such-board?includeCompensation=true": {
+    "status": 404,
+    "content_type": "text/plain; charset=utf-8",
+    "file": "ashby-board-missing.txt"
+  },
+  "https://www.palantir.com/careers/": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "file": "careers-lever.html"
+  },
+  "https://www.notion.com/careers": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "file": "careers-ashby.html"
+  },
+  "https://careers.duolingo.com/": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "file": "careers-greenhouse.html"
+  },
+  "https://www.workday.com/en-us/company/careers/overview.html": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "file": "careers-workday.html"
+  },
+  "https://www.greenhouse.com/careers": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "file": "careers-no-board.html"
+  },
+  "https://www.lever.co/careers/": {
+    "status": 403,
+    "content_type": "text/html; charset=UTF-8",
+    "file": "careers-blocked.html"
   }
 }
