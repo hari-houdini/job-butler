@@ -2,9 +2,11 @@
 // recorded on the Discover run as a skipped source, never silently ignored.
 import { greenhouse } from "./greenhouse.ts";
 import type { Ats, Board, BoardReader } from "./reader.ts";
+import { workday } from "./workday.ts";
 
 export const BOARD_READERS: Partial<Record<Ats, BoardReader>> = {
   greenhouse,
+  workday,
 };
 
 export const ATS_NAMES: Record<Ats, string> = {

@@ -110,6 +110,8 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 
 - `reader.ts` defines the seam: `BoardReader.read(board, {company, target_roles}) → JobPosting[]`. A reader fetches through `httpGet`, normalises, and never writes. It throws `BoardFailure` (a `CoreError`) with `BOARD_NOT_FOUND` (404), `BOARD_UNAVAILABLE` (other non-2xx) or `BOARD_CHANGED_SHAPE` (non-JSON or missing fields); helpers `fetchBoardJson`, `changedShape` and `utc` cover these. Any `CoreError` from a reader, `NETWORK_ERROR` included, fails that source only.
 - `index.ts` registers readers in `BOARD_READERS` by ATS and defines `boardId(board)`: `greenhouse:<token>`, `lever:<token>`, `ashby:<token>`, `workday:<tenant>:<site>`. An ATS with no reader is recorded as a `skipped` source with `BOARD_NOT_SUPPORTED`. Add an ATS (#35, #36) by writing `boards/<ats>.ts` and adding it to `BOARD_READERS`; `discover.ts` needs no change.
+- `fetchBoardJson(url, what, postBody?)` POSTs `postBody` as JSON when given; `fetchBoard(url, what, postBody?)` returns the body as text (HTML pages) with the same status rules.
+- **Workday** (`boards/workday.ts`, #36): one cxs search per target role (`POST /wday/cxs/{tenant}/{site}/jobs`, 20 per page, `total` read from the first page only, the whole board when there are no roles), deduped by `externalPath`; then each job page is fetched (4 at a time) and read from its JSON-LD `JobPosting`. `source_job_id` is the JSON-LD `identifier.value` (the requisition ID, e.g. `JR-0110317`); two postings of one requisition keep the first. `deadline` is `validThrough` when present; `salary` is always null. `source_fields`: `hiring_organization`, `external_path`, `locations_text`, `posted_on` (cxs relative text), `remote_type`, `job_location_type`. A cxs page without `jobPostings`/`total`, or a job page with no JSON-LD `JobPosting`, fails the source with `BOARD_CHANGED_SHAPE`; more than 2,000 matches for one role fails with `BOARD_SEARCH_TOO_BROAD`. Because a Workday board is read through searches, a job that stops matching the target roles (including after the job seeker changes them) is marked gone.
 - `JobPosting` fields, all present (null or `[]` when the board has none): `source_job_id`, `title` (trimmed), `location`, `url` (the public posting page), `description` (plain text via `htmlToText` in `core/src/html-text.ts`: never HTML), `departments`, `employment_type`, `salary` (as stated, or null), `posted_at` and `deadline` (ISO UTC), and `source_fields` (source-specific scalars; Greenhouse: `internal_job_id`, `requisition_id`, `updated_at`, `offices`).
 
 ### Listing record (`pipeline/listing/<id>.json`)
@@ -128,7 +130,7 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 
 ## Network
 
-Every fetch goes through `httpGet` in `core/src/net.ts`. With `JOB_BUTLER_NETWORK_FIXTURES` set, it answers from `<dir>/manifest.json` (`{"<url>": {"status", "content_type", "file"}}`) and refuses unknown URLs with `NETWORK_FIXTURE_MISSING`. Loopback URLs are always live.
+Every fetch goes through `httpGet` in `core/src/net.ts`. A JSON POST goes through `httpPostJson(url, body)`. With `JOB_BUTLER_NETWORK_FIXTURES` set, both answer from `<dir>/manifest.json` (`{"<url>": {"status", "content_type", "file"}}`; a POST's key is `"POST <url> <body>"`, the JSON body exactly as sent) and refuse unknown requests with `NETWORK_FIXTURE_MISSING`. Loopback URLs are always live.
 
 ## Tests
 

@@ -1,0 +1,7 @@
+{
+  "POST https://workday.wd5.myworkdayjobs.com/wday/cxs/workday/Workday/jobs {\"appliedFacets\":{},\"limit\":20,\"offset\":0,\"searchText\":\"Staff Backend Engineer\"}": {
+    "status": 200,
+    "content_type": "application/json",
+    "file": "../workday/cxs-job-detail.json"
+  }
+}
