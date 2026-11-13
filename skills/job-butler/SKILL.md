@@ -24,6 +24,7 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
 Branch on the first argument:
 
 - **`setup`**: read `${CLAUDE_SKILL_DIR}/../setup/SKILL.md` and follow it, passing on any further arguments.
+- **`discover`**: read `${CLAUDE_SKILL_DIR}/../discover/SKILL.md` and follow it.
 - **`preferences`**: see Preferences below.
 - **anything else** (no argument, or a Stage name): run the pipeline.
 

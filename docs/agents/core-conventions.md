@@ -7,9 +7,10 @@ How the plugin and the deterministic core are laid out, set by ticket #30. Follo
 ```
 .claude-plugin/   plugin.json + marketplace.json (repo root is the plugin root)
 skills/<name>/    SKILL.md per skill; skills/job-butler is the /job-butler entry point
-agents/           worker subagents, one per Stage (add when the first one lands)
+agents/           worker subagents, <stage>-worker.md (see "Stage skills and worker subagents")
 hooks/hooks.json  the Approval PreToolUse hook and a SessionStart hook; both call the core
-core/src/         the TypeScript core: cli.ts (entry), commands.ts (registry), one module per concern
+core/src/         the TypeScript core: cli.ts (entry), commands.ts (registry), one module per concern;
+                  boards/ holds one reader per ATS
 core/test/        *.test.ts, harness.ts, fixtures/
 ```
 
@@ -94,6 +95,37 @@ Approval record (`pipeline/approval/<uuid>.json`): `checkpoint`, `session_id`, `
 
 Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool_name`, `tool_input`) and read `hookSpecificOutput.permissionDecision` (`"deny"`, else not blocked). See `core/test/approval.test.ts`.
 
+## Stage skills and worker subagents (set by #33)
+
+- A Stage skill lives at `skills/<stage>/SKILL.md`, user-invoked (`disable-model-invocation: true`), and the `/job-butler` skill routes its Stage name to it by reading that file. Its shape: `run start <stage>` → the Stage's core commands → report → `run end --run <run_id>` unless `joined` was true. Run `run end` on every exit after a successful `run start`. Relay `error.message` as written.
+- The skill owns all conversation and every pipeline write; each write is one core command per batch (`discover boards` writes a whole run in one `withWriter`).
+- A **worker subagent** (`agents/<stage>-worker.md`) does only the Stage's LLM judgments. It has no outward tools and no Bash, so it can neither write pipeline state nor fetch: give it `tools: Read` at most, and the cheapest `model` that fits (haiku for extraction and classification, sonnet for rating and tailoring). The round trip: a core command returns the material to judge as JSON → the skill dispatches the worker with that JSON in the prompt (the worker reads nothing else, so Profile data reaches it only when the judgment needs it) → the worker returns one JSON object → the skill passes it to the core with `--input -`, which validates it and writes. Store each judgment's fixture in `core/test/fixtures/judgments/`.
+- Discover has no worker yet: reading boards needs no judgment. The first Discover judgment (#37's "same job?" confirmation or #38's LinkedIn matching) adds `agents/discover-worker.md` in this shape.
+
+## Discover (set by #33)
+
+`discover boards` reads every Target company's board, then in one write: creates the Discover run, adds a Sighting to every Listing seen (creating new Listings), and marks gone every Listing missing from a board that was read **successfully** (a failed board marks nothing gone). It returns `discover_run` and `new` (`[{id, company, title, location}]`). Discover's writes need no Approval: none of its commands are in `CHECKPOINT_COMMANDS` or `GATED_COMMANDS`.
+
+### Board readers (`core/src/boards/`)
+
+- `reader.ts` defines the seam: `BoardReader.read(board, {company, target_roles}) → JobPosting[]`. A reader fetches through `httpGet`, normalises, and never writes. It throws `BoardFailure` (a `CoreError`) with `BOARD_NOT_FOUND` (404), `BOARD_UNAVAILABLE` (other non-2xx) or `BOARD_CHANGED_SHAPE` (non-JSON or missing fields); helpers `fetchBoardJson`, `changedShape` and `utc` cover these. Any `CoreError` from a reader, `NETWORK_ERROR` included, fails that source only.
+- `index.ts` registers readers in `BOARD_READERS` by ATS and defines `boardId(board)`: `greenhouse:<token>`, `lever:<token>`, `ashby:<token>`, `workday:<tenant>:<site>`. An ATS with no reader is recorded as a `skipped` source with `BOARD_NOT_SUPPORTED`. Add an ATS (#35, #36) by writing `boards/<ats>.ts` and adding it to `BOARD_READERS`; `discover.ts` needs no change.
+- `JobPosting` fields, all present (null or `[]` when the board has none): `source_job_id`, `title` (trimmed), `location`, `url` (the public posting page), `description` (plain text via `htmlToText` in `core/src/html-text.ts`: never HTML), `departments`, `employment_type`, `salary` (as stated, or null), `posted_at` and `deadline` (ISO UTC), and `source_fields` (source-specific scalars; Greenhouse: `internal_job_id`, `requisition_id`, `updated_at`, `offices`).
+
+### Listing record (`pipeline/listing/<id>.json`)
+
+- ID: `<board id>:<source_job_id>`, e.g. `greenhouse:acme:4012345`, kept for life.
+- `source` (the ATS), `board` (board ID), `company` (the Target company's name), every `JobPosting` field, plus:
+  - `aliases: [{id, url}]`: starts as the Listing's own ID and URL. #37 and #38 add others.
+  - `sightings: [{discover_run, alias, seen_at}]`: one per Discover run that saw it, `alias` naming the copy seen.
+  - `first_seen_at` (Job Butler's own first Sighting, never changed) and `last_seen_at`. Screen's age is the earlier of `first_seen_at` and `posted_at`, since `posted_at` resets on republish.
+  - `gone: boolean`, `gone_at`: set when its board was read and it was missing; cleared when it is seen again.
+- A later Sighting refreshes the posting fields and keeps every other field, so Screen results and marks added by later Stages survive Discover.
+
+### Discover run record (`pipeline/discover-run/<uuid>.json`)
+
+`started_at`, `finished_at`, `run_id` (the run lock's, or null), `sources: [{id, ats, company, status: "ok"|"failed"|"skipped", jobs, error: {code, message}|null}]`, `new_listings` and `gone_listings` (Listing IDs), `listings_seen`. The digest (#52) reports every source whose status isn't `ok`.
+
 ## Network
 
 Every fetch goes through `httpGet` in `core/src/net.ts`. With `JOB_BUTLER_NETWORK_FIXTURES` set, it answers from `<dir>/manifest.json` (`{"<url>": {"status", "content_type", "file"}}`) and refuses unknown URLs with `NETWORK_FIXTURE_MISSING`. Loopback URLs are always live.
@@ -104,7 +136,7 @@ Every fetch goes through `httpGet` in `core/src/net.ts`. With `JOB_BUTLER_NETWOR
 - Tests drive the CLI through `runCli(args, { dataDir, input, env })` from `core/test/harness.ts` and assert on the JSON result, exit code and files in the data directory. Never import `core/src` from a test.
 - Use `tempDir(t)` for a data directory and `git(cwd, ...)` for git repos (both isolated from your own config). `runCli` defaults: network from `core/test/fixtures/network`, `gh` from `core/test/fixtures/gh/unavailable`, clock at `2026-01-15T09:00:00.000Z`.
 - Fixture boundaries:
-  - **Network:** add the recorded file to `core/test/fixtures/network/` and its URL to `manifest.json`. Record real responses; trim them, don't invent fields.
+  - **Network:** add the recorded file to `core/test/fixtures/network/` and its URL to `manifest.json`. Record real responses; trim them, don't invent fields. When the same URL must answer differently in a later run (a job taken down, a board failing), add a scenario folder with its own `manifest.json` (its `file` may point to `../<file>`) and pass it as `env: { JOB_BUTLER_NETWORK_FIXTURES }` for that call, as `discover.test.ts` does.
   - **LLM judgments:** JSON files in `core/test/fixtures/judgments/`, passed with `--input judgment("<name>")`. `setup-profile.json` is a complete Profile as setup would write it; tests that need a passing Stage gate write it with `profile put` and run `preferences init`.
   - **Browser:** pages in `core/test/fixtures/browser/`, served by `serveBrowserFixtures(t)` on 127.0.0.1.
   - **gh:** executable scripts in `core/test/fixtures/gh/`, selected with `env: { JOB_BUTLER_GH }`.

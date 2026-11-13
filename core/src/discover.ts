@@ -79,8 +79,18 @@ async function readBoard(company: TargetCompany, roles: string[]): Promise<Board
   }
 }
 
+/** A new Listing as `discover boards` names it, so the skill reports without more reads. */
+interface NewListing {
+  id: string;
+  company: string;
+  title: string;
+  location: string | null;
+}
+
 /** Read every Target company's board and write the Discover run, Listings and Sightings. */
-export async function discoverBoards(dataDir: string): Promise<{ discover_run: StoredRecord }> {
+export async function discoverBoards(
+  dataDir: string,
+): Promise<{ discover_run: StoredRecord; new: NewListing[] }> {
   const companies = await targetCompanies(dataDir);
   const roles = await targetRoles(dataDir);
   const startedAt = timestamp();
@@ -99,6 +109,7 @@ export async function discoverBoards(dataDir: string): Promise<{ discover_run: S
     const existing = new Map((await listRecords(dataDir, "listing")).map((l) => [l.id, l]));
     const seen = new Set<string>();
     const created: string[] = [];
+    const named: NewListing[] = [];
     const gone: string[] = [];
 
     for (const { source, postings } of results) {
@@ -107,7 +118,11 @@ export async function discoverBoards(dataDir: string): Promise<{ discover_run: S
         if (seen.has(id)) continue;
         seen.add(id);
         const prev = existing.get(id);
-        if (prev === undefined) created.push(id);
+        if (prev === undefined) {
+          created.push(id);
+          const { title, location } = posting;
+          named.push({ id, company: source.company, title, location });
+        }
         const sighting: Sighting = { discover_run: runId, alias: id, seen_at: now };
         await w.put("listing", id, {
           ...prev,
@@ -145,6 +160,6 @@ export async function discoverBoards(dataDir: string): Promise<{ discover_run: S
       gone_listings: gone,
       listings_seen: seen.size,
     });
-    return { discover_run: discoverRun };
+    return { discover_run: discoverRun, new: named };
   });
 }

@@ -101,6 +101,23 @@ test("Discover writes one Listing per Greenhouse job, keyed by source and job ID
   assert.equal(swe?.source_fields.internal_job_id, 3547866);
 });
 
+test("Discover names its new Listings so the skill can report them in one call", async (t) => {
+  const dataDir = join(tempDir(t), "data");
+  await setUp(dataDir, [GREENHOUSE]);
+
+  const first = await runCli(["discover", "boards"], { dataDir });
+  const second = await runCli(["discover", "boards"], { dataDir });
+
+  assert.deepEqual((first.json.new as unknown[])[1], {
+    id: "greenhouse:greenhouse:8204473",
+    company: "Greenhouse",
+    title: "Senior Software Engineer",
+    location: "Ontario",
+  });
+  assert.equal((first.json.new as unknown[]).length, 3);
+  assert.deepEqual(second.json.new, []);
+});
+
 test("a Listing's description is plain text, never HTML", async (t) => {
   const dataDir = join(tempDir(t), "data");
   await setUp(dataDir, [GREENHOUSE]);
