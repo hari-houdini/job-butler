@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake `gh` for tests: reports the current repo as private.
+echo '{"isPrivate":true}'

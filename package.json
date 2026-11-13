@@ -1,0 +1,23 @@
+{
+  "name": "job-butler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Job Butler: a Claude Code plugin with a deterministic TypeScript core CLI",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "cli": "node core/src/cli.ts",
+    "test": "node --test \"core/test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  }
+}

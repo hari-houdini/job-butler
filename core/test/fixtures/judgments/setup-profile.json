@@ -1,0 +1,88 @@
+{
+  "identity": {
+    "name": "Ada Example",
+    "email": "ada@example.com",
+    "phone": "+44 7700 900123",
+    "country": "United Kingdom",
+    "location": "London",
+    "links": [{ "label": "GitHub", "url": "https://github.com/ada-example" }]
+  },
+  "base_resume": {
+    "reviewed_at": "2026-01-15T08:55:00.000Z",
+    "summary": {
+      "text": "Backend engineer with six years building payment APIs.",
+      "source": "resume"
+    },
+    "experience": [
+      {
+        "employer": "Northwind Payments",
+        "title": "Senior Software Engineer",
+        "location": "London",
+        "start": "2022-03",
+        "end": null,
+        "source": "resume",
+        "bullets": [
+          {
+            "text": "Cut card authorisation latency by 40% by moving fraud checks off the hot path.",
+            "source": "resume"
+          },
+          { "text": "Mentored four engineers.", "source": "linkedin: export 2026-01" }
+        ]
+      }
+    ],
+    "education": [
+      {
+        "institution": "University of Leeds",
+        "qualification": "MSc Computer Science",
+        "end": "2019",
+        "source": "resume"
+      }
+    ],
+    "skills": [
+      { "name": "Go", "source": "resume" },
+      { "name": "PostgreSQL", "source": "github: ada-example/ledger" }
+    ],
+    "projects": [],
+    "certifications": []
+  },
+  "targets": {
+    "roles": ["Backend Engineer", "Platform Engineer"],
+    "seniority": ["senior", "staff"],
+    "locations": ["London"],
+    "remote": true,
+    "salary_floor": { "amount": 70000, "currency": "GBP", "period": "year" },
+    "notice_period": "1 month"
+  },
+  "sponsorship": {
+    "needed": true,
+    "regime": "uk-skilled-worker",
+    "flags": { "new_entrant": { "value": true, "reason": "graduate_route" } },
+    "flags_skipped": false
+  },
+  "filters": {
+    "allow": { "companies": [], "titles": [], "locations": [] },
+    "deny": { "companies": ["Contoso"], "titles": ["Sales"], "locations": [] },
+    "target_companies": [
+      {
+        "name": "Acme",
+        "careers_url": "https://acme.example/careers",
+        "board": { "ats": "greenhouse", "token": "acme" },
+        "confirmed_at": "2026-01-15T08:58:00.000Z"
+      },
+      {
+        "name": "Fabrikam",
+        "board": { "ats": "workday", "tenant": "fabrikam", "instance": "wd5", "site": "Careers" },
+        "confirmed_at": "2026-01-15T08:59:00.000Z"
+      }
+    ]
+  },
+  "autonomy": { "enabled": false, "caps": {}, "fit_threshold": 80, "lists": {} },
+  "answer_bank": [
+    {
+      "question": "Are you legally authorised to work in the UK?",
+      "answer": "No, I need sponsorship."
+    },
+    { "question": "Gender", "answer": "Prefer not to say", "kind": "diversity" }
+  ],
+  "companies_house_key": null
+}

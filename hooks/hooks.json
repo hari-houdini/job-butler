@@ -1,0 +1,26 @@
+{
+  "description": "Job Butler's Approval hook: blocks outward tools and Checkpoint writes that no Approval or standing grant covers.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|Skill|mcp__claude_ai_Gmail__.*|mcp__claude_ai_Google_Calendar__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/core/src/cli.ts\" hook pre-tool-use || { echo \"Job Butler's Approval hook couldn't run, so it blocked this tool call. Check that Node 22.18 or later is installed.\" >&2; exit 2; }"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/core/src/cli.ts\" hook session-start || true"
+          }
+        ]
+      }
+    ]
+  }
+}

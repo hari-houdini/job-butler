@@ -29,8 +29,24 @@ The ranked Listings Screen puts in front of the job seeker; picking one from it 
 _Avoid_: Recommendations, picks
 
 **Application**:
-The job seeker's pursuit of one Listing, from shortlist through outcome; the unit the pipeline tracks.
+The job seeker's pursuit of one Listing, from shortlist through outcome, or of a job applied to outside Job Butler; the unit the pipeline tracks.
 _Avoid_: Job, lead, opportunity
+
+**External application**:
+An Application the job seeker made outside Job Butler, found in their mail and tracked at their request. It has no Listing and none of Screen, Tailor or Apply: only a Status and its Event log.
+_Avoid_: Manual application, outside application, untracked application
+
+**Application limit**:
+A company's rule on how many Applications one person may make within a time window, either across the whole company (a cap) or for the same role (a reapply cooldown). It warns and reorders the Shortlist but never blocks a pick.
+_Avoid_: Quota, application cap, cooldown
+
+**Target company**:
+A company whose job board Discover searches, kept on a list in the Profile. Unlike the company allow list, it decides where Discover looks, not which Listings Screen keeps.
+_Avoid_: Watchlist, allow list, tracked company
+
+**Fit score**:
+A 0–100 score, with written bands, of how well a Listing matches the Profile, with reasons cited per criterion. It ranks the Shortlist and never removes a Listing.
+_Avoid_: Match score, relevance, rating
 
 **Ghost job**:
 A Listing that is fake, stale, or never intended to be filled.
@@ -43,8 +59,12 @@ _Avoid_: Visa support
 ### The job seeker
 
 **Profile**:
-The job seeker's standing record: base resume, target roles, preferences, Sponsorship needs, and allow/deny lists. It must exist before any Stage runs.
-_Avoid_: Settings, preferences, user config
+The job seeker's standing record: base resume, target roles, Sponsorship needs, and allow/deny lists. It describes the job seeker and the job they want; how Job Butler runs belongs to Preferences. It must exist before any Stage runs.
+_Avoid_: Settings, user config
+
+**Preferences**:
+How Job Butler runs for this job seeker, such as when it runs on its own, whether it tracks External applications, and how far back it reads mail. Created at setup and changed only while no run is in progress.
+_Avoid_: Settings, config, options
 
 **Base resume**:
 The job seeker's complete, reviewed record of experience from which every tailored resume is drawn.
@@ -81,8 +101,12 @@ _Avoid_: Hand-off, review step
 ### Pipeline records
 
 **Pipeline state**:
-Everything the Stages read and write to pass work along: Listings with their Sightings, Applications with their Status and Event log, and Sync records.
+Everything the Stages read and write to pass work along: Listings with their Sightings, Applications with their Status and Event log, Employers, and Sync records.
 _Avoid_: Database, store, cache
+
+**Employer**:
+The organisation that would actually hire for a Listing, once Screen has matched its name and town to an entry on the sponsor register. Later Listings from the same employer reuse the match, and the job seeker can correct it.
+_Avoid_: Company, hiring entity, sponsor
 
 **Sighting**:
 One observation of a Listing on a source, with the date it was seen. Repeated Sightings reveal reposts and let Screen judge how long a Listing has been open.
@@ -95,6 +119,10 @@ _Avoid_: State, stage
 **Event log**:
 The append-only record of every Status change on an Application, with the Stage that made it and when.
 _Avoid_: History, audit trail
+
+**Decision tree**:
+A diagram of every check a Listing went through and the branch each one took, from Screen onwards and on into its Application. It is a view of what the pipeline already recorded, never a separate account of it.
+_Avoid_: Audit trail, explanation, reasoning trace
 
 **Sync record**:
 Track's record of how far it has read from one connector (Gmail, Google Calendar), so the next run only looks at new mail and events.

@@ -1,0 +1,12 @@
+{
+  "https://boards-api.greenhouse.io/v1/boards/greenhouse/jobs?content=true": {
+    "status": 200,
+    "content_type": "application/json",
+    "file": "greenhouse-board.json"
+  },
+  "https://boards-api.greenhouse.io/v1/boards/jb-no-such-board/jobs?content=true": {
+    "status": 404,
+    "content_type": "application/json",
+    "file": "../greenhouse-board-missing.json"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "job-butler",
+  "description": "A personal job-search assistant: Discover, Screen, Tailor, Apply and Track, with you approving anything sent in your name.",
+  "version": "0.1.0",
+  "repository": "https://github.com/hari-houdini/job-butler",
+  "skills": "./skills/"
+}
