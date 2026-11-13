@@ -1,0 +1,127 @@
+{
+  "judgments": [
+    {
+      "listing_id": "greenhouse:acme:101",
+      "skills_rating": {
+        "summary": "Strong backend match: Go and PostgreSQL both evidenced; no Kafka.",
+        "criteria": [
+          {
+            "criterion": "Go services in production",
+            "importance": "core",
+            "match": "strong",
+            "listing_quote": "You have shipped Go services to production",
+            "resume_evidence": "Senior Software Engineer, Northwind Payments: cut card authorisation latency by 40%"
+          },
+          {
+            "criterion": "PostgreSQL",
+            "importance": "core",
+            "match": "strong",
+            "listing_quote": "deep PostgreSQL experience",
+            "resume_evidence": "Skills: PostgreSQL (github: ada-example/ledger)"
+          },
+          {
+            "criterion": "Kafka",
+            "importance": "nice",
+            "match": "none",
+            "listing_quote": "Kafka is a plus",
+            "resume_evidence": null
+          },
+          {
+            "criterion": "Mentoring",
+            "importance": "nice",
+            "match": "strong",
+            "listing_quote": "mentor other engineers",
+            "resume_evidence": "Mentored four engineers."
+          }
+        ]
+      }
+    },
+    {
+      "listing_id": "greenhouse:acme:102",
+      "skills_rating": {
+        "summary": "Partial: Go evidenced, Kubernetes only indirectly, no Terraform.",
+        "criteria": [
+          {
+            "criterion": "Kubernetes",
+            "importance": "core",
+            "match": "partial",
+            "listing_quote": "run workloads on Kubernetes",
+            "resume_evidence": "Moved fraud checks off the hot path (service deployment, no Kubernetes named)"
+          },
+          {
+            "criterion": "Go",
+            "importance": "core",
+            "match": "strong",
+            "listing_quote": "Our platform is written in Go",
+            "resume_evidence": "Skills: Go (resume)"
+          },
+          {
+            "criterion": "Terraform",
+            "importance": "nice",
+            "match": "none",
+            "listing_quote": "Terraform experience helps",
+            "resume_evidence": null
+          }
+        ]
+      }
+    },
+    {
+      "listing_id": "greenhouse:acme:103",
+      "skills_rating": {
+        "summary": "Strong backend match, but the role is in Berlin.",
+        "criteria": [
+          {
+            "criterion": "Go services in production",
+            "importance": "core",
+            "match": "strong",
+            "listing_quote": "You have shipped Go services to production",
+            "resume_evidence": "Senior Software Engineer, Northwind Payments"
+          },
+          {
+            "criterion": "PostgreSQL",
+            "importance": "core",
+            "match": "strong",
+            "listing_quote": "deep PostgreSQL experience",
+            "resume_evidence": "Skills: PostgreSQL"
+          },
+          {
+            "criterion": "Kafka",
+            "importance": "nice",
+            "match": "none",
+            "listing_quote": "Kafka is a plus",
+            "resume_evidence": null
+          },
+          {
+            "criterion": "Mentoring",
+            "importance": "nice",
+            "match": "strong",
+            "listing_quote": "mentor other engineers",
+            "resume_evidence": "Mentored four engineers."
+          }
+        ]
+      }
+    },
+    {
+      "listing_id": "greenhouse:acme:104",
+      "skills_rating": {
+        "summary": "Weak: an analyst role; SQL only partly evidenced, no Tableau.",
+        "criteria": [
+          {
+            "criterion": "SQL reporting",
+            "importance": "core",
+            "match": "partial",
+            "listing_quote": "write SQL reports for the finance team",
+            "resume_evidence": "Skills: PostgreSQL"
+          },
+          {
+            "criterion": "Tableau",
+            "importance": "core",
+            "match": "none",
+            "listing_quote": "build Tableau dashboards",
+            "resume_evidence": null
+          }
+        ]
+      }
+    }
+  ]
+}
