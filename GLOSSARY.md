@@ -89,8 +89,12 @@ _Avoid_: Hand-off, review step
 ### Pipeline records
 
 **Pipeline state**:
-Everything the Stages read and write to pass work along: Listings with their Sightings, Applications with their Status and Event log, and Sync records.
+Everything the Stages read and write to pass work along: Listings with their Sightings, Applications with their Status and Event log, Employers, and Sync records.
 _Avoid_: Database, store, cache
+
+**Employer**:
+The organisation that would actually hire for a Listing, once Screen has matched its name and town to an entry on the sponsor register. Later Listings from the same employer reuse the match, and the job seeker can correct it.
+_Avoid_: Company, hiring entity, sponsor
 
 **Sighting**:
 One observation of a Listing on a source, with the date it was seen. Repeated Sightings reveal reposts and let Screen judge how long a Listing has been open.
