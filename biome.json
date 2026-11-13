@@ -11,6 +11,7 @@
       "core/**",
       "!core/test/fixtures/network",
       "!core/test/fixtures/browser",
+      "!core/vendor",
       "*.json",
       ".claude-plugin/**",
       "hooks/**"
