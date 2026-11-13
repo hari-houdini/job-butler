@@ -10,6 +10,7 @@ import {
 } from "./approval.ts";
 import type { Command } from "./cli.ts";
 import { ensureSafeDataDir } from "./data-dir.ts";
+import { discoverBoards } from "./discover.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
@@ -216,6 +217,15 @@ export const commands: Record<string, Command> = {
       }
       return { preferences: await setPreference(dataDir, key, value) };
     },
+  },
+
+  // Discover (docs/agents/core-conventions.md, "Discover").
+  "discover boards": {
+    usage: "discover boards",
+    summary:
+      "Read every Target company's board, write the Discover run, add a Sighting to each " +
+      "Listing seen (creating new ones) and mark gone the Listings missing from a board read.",
+    run: async ({ dataDir }) => ({ ...(await discoverBoards(dataDir)) }),
   },
 
   // Approval (docs/agents/core-conventions.md, "Approval").
