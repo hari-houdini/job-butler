@@ -22,12 +22,13 @@ export const REPOST_WINDOW_DAYS = 60;
 export const NEAR_IDENTICAL = 0.8;
 
 /** How an alias joined its Listing. */
-export type AliasVia = "own" | "shared-ats-link" | "same-job" | "repost";
+export type AliasVia = "own" | "shared-ats-link" | "same-job" | "repost" | "linkedin-match";
 
 /** One copy of the job on a source. The first alias is the Listing's own posting. */
 export interface Alias {
   id: string;
-  url: string;
+  /** Null for a LinkedIn job pasted without its link. */
+  url: string | null;
   /** The board (source) ID this copy is on, e.g. "greenhouse:acme". */
   board?: string;
   source?: string;
@@ -51,7 +52,7 @@ export interface Sighting {
 export interface Merge {
   listing: string;
   alias: string;
-  step: "shared-ats-link" | "same-job";
+  step: "shared-ats-link" | "same-job" | "linkedin-match";
   reason: string | null;
 }
 
@@ -106,7 +107,7 @@ function addTo(l: ListingData, field: string, id: string): boolean {
 const isLive = (l: ListingData): boolean => l.gone !== true;
 
 /** True once the job seeker split the pair or the LLM said they're different jobs. */
-function keptApart(a: ListingData, bId: string): boolean {
+export function keptApart(a: ListingData, bId: string): boolean {
   return list(a, "distinct_from").includes(bId);
 }
 
@@ -226,7 +227,7 @@ function inScope(book: Book, seen: Seen, id: string): ListingData[] {
     .sort(byFirstSeen);
 }
 
-function findByAlias(book: Book, id: string): ListingData | undefined {
+export function findByAlias(book: Book, id: string): ListingData | undefined {
   for (const l of book.listings.values()) if (l.aliases.some((a) => a.id === id)) return l;
   return undefined;
 }
@@ -280,6 +281,18 @@ export function observe(book: Book, seen: Seen, runId: string, now: string): Out
   }
 
   // 4. A new Listing.
+  return { kind: "new", listing: addListing(book, seen, id, runId, now).id };
+}
+
+/** Create a Listing for a posting nothing matched, with its own alias and first Sighting. */
+export function addListing(
+  book: Book,
+  seen: Seen,
+  id: string,
+  runId: string,
+  now: string,
+): ListingData {
+  const sighting: Sighting = { discover_run: runId, alias: id, seen_at: now };
   const listing = {
     ...postingFields(seen),
     aliases: [aliasFor(seen, id, "own", now)],
@@ -296,7 +309,7 @@ export function observe(book: Book, seen: Seen, runId: string, now: string): Out
     id,
   } as unknown as ListingData;
   touch(book, listing);
-  return { kind: "new", listing: id };
+  return listing;
 }
 
 /** Add a Sighting; refresh the posting fields when it's a copy on the Listing's own board. */
@@ -348,12 +361,12 @@ export function markSimilarRoles(book: Book): [string, string][] {
   return marked;
 }
 
-function bothApplied(book: Book, a: ListingData, b: ListingData): boolean {
+export function bothApplied(book: Book, a: ListingData, b: ListingData): boolean {
   return book.withApplication.has(a.id) && book.withApplication.has(b.id);
 }
 
 /** What the worker needs to judge one side of a "same job?" pair. */
-function sideOf(l: ListingData): Record<string, unknown> {
+export function sideOf(l: ListingData): Record<string, unknown> {
   return {
     id: l.id,
     company: l.company,
@@ -383,9 +396,29 @@ export function sameJobCandidates(book: Book): SameJobCandidate[] {
 
 // ---- Merge and split -----------------------------------------------------------------------
 
+// ---- LinkedIn copies (#38) -------------------------------------------------------------------
+
+/** The source of LinkedIn Listings (pasted or from alert emails); never fetched. */
+export const LINKEDIN = "linkedin";
+
+const aliasSource = (a: Alias): string => a.source ?? a.id.split(":")[0] ?? "";
+
+/** True when every copy of the job is on LinkedIn, so no board has shown it exists. */
+export function linkedInOnly(l: ListingData): boolean {
+  return l.aliases.length > 0 && l.aliases.every((a) => aliasSource(a) === LINKEDIN);
+}
+
+/** Keep `existence_unverified` (the ghost score's LinkedIn-only signal) true to the aliases. */
+function refreshExistence(l: ListingData): void {
+  if ("existence_unverified" in l || l.aliases.some((a) => aliasSource(a) === LINKEDIN)) {
+    l.existence_unverified = linkedInOnly(l);
+  }
+}
+
 /**
- * Merge two Listings into one. The survivor is the one with an Application, else the
- * first seen, so a late duplicate never makes a second Application or a Shortlist return.
+ * Merge two Listings into one. The survivor is the one with an Application, else one on an
+ * ATS board over a LinkedIn-only one (its posting fields are the employer's), else the first
+ * seen, so a late duplicate never makes a second Application or a Shortlist return.
  */
 export function mergeListings(
   book: Book,
@@ -393,14 +426,20 @@ export function mergeListings(
   bId: string,
   reason: string,
   now: string,
+  step: "same-job" | "linkedin-match" = "same-job",
 ): Merge {
   const a = book.listings.get(aId) as ListingData;
   const b = book.listings.get(bId) as ListingData;
+  const applied = (l: ListingData) => book.withApplication.has(l.id);
   const [keep, drop] =
-    book.withApplication.has(b.id) && !book.withApplication.has(a.id)
-      ? [b, a]
-      : book.withApplication.has(a.id) && !book.withApplication.has(b.id)
+    applied(a) !== applied(b)
+      ? applied(a)
         ? [a, b]
+        : [b, a]
+      : linkedInOnly(a) !== linkedInOnly(b)
+        ? linkedInOnly(b)
+          ? [a, b]
+          : [b, a]
         : byFirstSeen(a, b) <= 0
           ? [a, b]
           : [b, a];
@@ -412,7 +451,7 @@ export function mergeListings(
       source: al.source ?? (i === 0 ? drop.source : undefined),
       title: al.title ?? (i === 0 ? drop.title : undefined),
       location: al.location !== undefined ? al.location : i === 0 ? drop.location : undefined,
-      via: "same-job" as const,
+      via: step,
       added_at: now,
     })),
   ];
@@ -426,7 +465,8 @@ export function mergeListings(
     keep.gone_at = null;
   }
   keep.repost_count = Number(keep.repost_count ?? 0) + Number(drop.repost_count ?? 0);
-  const merge: Merge = { listing: keep.id, alias: drop.id, step: "same-job", reason };
+  refreshExistence(keep);
+  const merge: Merge = { listing: keep.id, alias: drop.id, step, reason };
   keep.merges = [...((keep.merges as unknown[]) ?? []), { ...merge, merged_at: now }];
   for (const field of ["similar_roles", "distinct_from"]) {
     keep[field] = [...new Set([...list(keep, field), ...list(drop, field)])]
@@ -526,6 +566,8 @@ export function splitListing(
     { kind: "split", into: aliasId, alias: aliasId, at: now },
   ];
   addTo(from, "distinct_from", aliasId);
+  refreshExistence(from);
+  refreshExistence(split);
   touch(book, from);
   touch(book, split);
   return { listing: from, split };

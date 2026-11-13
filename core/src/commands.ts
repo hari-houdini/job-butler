@@ -15,6 +15,7 @@ import { confirmSameJob, discoverBoards, splitMerged } from "./discover.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
+import { addLinkedInJobs, confirmLinkedInMatch, matchLinkedIn } from "./linkedin.ts";
 import { endRun, readRunLock, startRun } from "./lock.ts";
 import { httpGet } from "./net.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
@@ -249,6 +250,35 @@ export const commands: Record<string, Command> = {
       const [runId] = ctx.args;
       if (runId === undefined) throw usageError("discover confirm: <discover_run_id> is required");
       return { ...(await confirmSameJob(ctx.dataDir, runId, await ctx.readInput())) };
+    },
+  },
+
+  // LinkedIn (docs/agents/core-conventions.md, "LinkedIn"). LinkedIn is never fetched.
+  "linkedin add": {
+    usage: 'linkedin add --input {"jobs": [{company, title, location, url, description, intake}]}',
+    summary:
+      "Take pasted (or alert) LinkedIn jobs in as Listings, read their Target company's board " +
+      'for the same title, and return the "LinkedIn match" questions for the discover-worker.',
+    run: async (ctx) => ({ ...(await addLinkedInJobs(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "linkedin match": {
+    usage: "linkedin match [<listing_id>...]",
+    summary:
+      'The "LinkedIn match" questions for stored LinkedIn-only Listings (all, or those named) ' +
+      "against the Listings on hand. Run after `discover boards`. Writes nothing.",
+    run: async ({ args, dataDir }) => ({ ...(await matchLinkedIn(dataDir, args)) }),
+  },
+
+  "linkedin confirm": {
+    usage: 'linkedin confirm <discover_run_id> --input {"matches": [...]}',
+    summary:
+      'Apply the discover-worker\'s "LinkedIn match" answers: pair each matched LinkedIn ' +
+      "Listing with its ATS posting as aliases; keep the rest LinkedIn-only.",
+    async run(ctx) {
+      const [runId] = ctx.args;
+      if (runId === undefined) throw usageError("linkedin confirm: <discover_run_id> is required");
+      return { ...(await confirmLinkedInMatch(ctx.dataDir, runId, await ctx.readInput())) };
     },
   },
 
