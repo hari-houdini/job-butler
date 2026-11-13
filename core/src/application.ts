@@ -4,6 +4,7 @@
 // through only under an unspent Approval, and the entry it writes cites that Approval.
 // Record shape: docs/agents/core-conventions.md, "Application record".
 import { randomUUID } from "node:crypto";
+import { liveEvaluation, loadLimitWorld } from "./application-limit.ts";
 import { approvalUsedFor, normaliseAction } from "./approval.ts";
 import { treePath, writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
@@ -98,6 +99,7 @@ function shortlistProblem(listing: StoredRecord | undefined, id: string): CoreEr
 export async function pickListings(
   dataDir: string,
   listingIds: string[],
+  opts: { overrideLimit?: string[] } = {},
 ): Promise<{ applications: StoredRecord[] }> {
   if (listingIds.length === 0) {
     throw usageError("application pick: give at least one <listing-id>");
@@ -122,6 +124,34 @@ export async function pickListings(
       listings.push(listing as StoredRecord);
     }
     const at = timestamp();
+    // Application limits (#42): judge each pick against today's Applications plus the earlier
+    // picks in this command. An over-limit pick needs an explicit override, which is recorded.
+    const world = await loadLimitWorld(dataDir);
+    const overridden = new Map<string, string>();
+    for (const listing of listings) {
+      const ev = liveEvaluation(listing, world, at);
+      if (ev.status === "over") {
+        if (!(opts.overrideLimit ?? []).includes(listing.id)) {
+          throw new CoreError(
+            "OVER_APPLICATION_LIMIT",
+            `${listing.company} · ${listing.title} ${ev.label}. Nothing was picked. To pick it anyway, ` +
+              `ask the job seeker, then repeat the pick with --override-limit ${listing.id}.`,
+            { listing_id: listing.id, limit: ev.limit, counted: ev.existing },
+          );
+        }
+        overridden.set(listing.id, ev.label);
+      }
+      world.applications.push({
+        id: `pending-${listing.id}`,
+        origin: "picked",
+        listing: listing.id,
+        company: listing.company,
+        employer: listing.employer ?? null,
+        title: listing.title,
+        status: "picked",
+        event_log: [{ at, to: "picked" }],
+      } as unknown as StoredRecord);
+    }
     const created: StoredRecord[] = [];
     const updated: StoredRecord[] = [];
     for (const listing of listings) {
@@ -131,7 +161,11 @@ export async function pickListings(
         stage: "screen",
         from: null,
         to: "picked",
-        reason: `Picked from the Shortlist${fit ? ` (Fit ${fit.score} ${fit.band})` : ""}.`,
+        reason:
+          `Picked from the Shortlist${fit ? ` (Fit ${fit.score} ${fit.band})` : ""}.` +
+          (overridden.has(listing.id)
+            ? ` Application-limit override: it ${overridden.get(listing.id)}.`
+            : ""),
         approval: {
           id: approval.id,
           checkpoint: approval.checkpoint,
@@ -143,6 +177,7 @@ export async function pickListings(
         origin: "picked",
         listing: listing.id,
         company: listing.company,
+        employer: listing.employer ?? null,
         title: listing.title,
         status: "picked",
         event_log: [entry],
@@ -153,7 +188,15 @@ export async function pickListings(
         decision_tree: treePath(listing.id),
       });
       created.push(app);
-      updated.push(await w.put("listing", listing.id, { ...listing, application_id: app.id }));
+      const overrides = overridden.has(listing.id)
+        ? [
+            ...(Array.isArray(listing.overrides) ? listing.overrides : []),
+            { kind: "application_limit", at, label: overridden.get(listing.id) },
+          ]
+        : listing.overrides;
+      updated.push(
+        await w.put("listing", listing.id, { ...listing, application_id: app.id, overrides }),
+      );
     }
     await writeTrees(dataDir, updated, created);
     return { applications: created };

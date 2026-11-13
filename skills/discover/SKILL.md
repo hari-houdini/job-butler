@@ -1,7 +1,7 @@
 ---
 name: discover
-description: Read the job seeker's Target companies' job boards into Listings, or take in a LinkedIn job they paste.
-argument-hint: "[pasted LinkedIn job text and link]"
+description: Read the job seeker's Target companies' job boards into Listings, take in a LinkedIn job they paste, or take in LinkedIn job-alert emails.
+argument-hint: "[pasted LinkedIn job text and link | alerts]"
 disable-model-invocation: true
 ---
 
@@ -22,7 +22,7 @@ Input that carries advert text (pasted jobs, worker replies) goes through a file
 ## Steps
 
 1. Run `run start discover`. On a refusal, relay it and stop: there is no run to end. Keep `run_id` and `joined`.
-2. When the job seeker gave a LinkedIn job (pasted text, a link or both), do "Taking in a LinkedIn job" below, then go to step 6. Otherwise carry on.
+2. When the job seeker gave a LinkedIn job (pasted text, a link or both), do "Taking in a LinkedIn job" below, then go to step 6. When they asked for LinkedIn alerts, do "Taking in LinkedIn alert emails" below, then go to step 6. Otherwise carry on.
 3. Run `discover boards`. It returns `discover_run`, `new` and `same_job`. The core has already merged copies it can prove (same alias, shared ATS link) and recorded reposts.
 4. If `same_job` is non-empty, get the "same job?" verdicts:
    1. Dispatch the `discover-worker` subagent with `"same job?"` and the `same_job` array as JSON in its prompt, and nothing else.
@@ -48,6 +48,15 @@ LinkedIn is never fetched: read the job only from what the job seeker pasted, an
    - **Paired:** `<title> at <company>` is on the employer's board too: show the LinkedIn link, the board posting's `url` and the `reason`. Apply will use the employer's form. The pairing is shown again at the Shortlist pick; a wrong one is undone with a split (below).
    - **LinkedIn-only:** no posting on the employer's board matched, so the Listing is marked "existence unverified" (Screen counts it as a ghost signal) and Apply hands over the LinkedIn link to apply by hand. Name every failed board from `discover_run.sources` as in step 5.
 5. For each name in `new_companies`, ask the job seeker: "<company> isn't one of your Target companies. Add this company?" On yes, tell them to run `/job-butler:setup filters` after this run ends to add it with its board; the next Discover run then pairs the Listing (step 5 above). Profile changes can't happen during a run, so leave the adding to setup.
+
+## Taking in LinkedIn alert emails
+
+Also reachable from Track (reply `alerts`). The `alert-worker` reads only (Gmail search, thread and message tools) and returns JSON; you write.
+
+1. Run `linkedin alerts window`. Keep `query` and `processed_ids`.
+2. Dispatch the `alert-worker` subagent once, with `query` and `processed_ids` in its prompt. If the Gmail tools are missing, tell the job seeker to connect Gmail in claude.ai and stop here.
+3. Write its reply to `linkedin-alerts.json` in the inbox and run `linkedin alerts record --input <file>`. On `ALERT_INVALID` or `NOT_A_LINKEDIN_URL`, dispatch the worker once more; after a second refusal, relay the message and stop here.
+4. It returns what `linkedin add` returns, plus `alerts_new` and `alerts_skipped`. Continue from step 3 of "Taking in a LinkedIn job" (match, report, "add this company?"). Say how many alert emails were new. Alert Listings carry no advert text, so the match relies on title and location.
 
 ## Getting the LinkedIn match
 

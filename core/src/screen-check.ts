@@ -2,6 +2,7 @@
 // Listing; each step records one or more Checks. A failed Check whose effect is "exclude"
 // stops the pipeline: every later Check is recorded as "not reached". See
 // docs/agents/core-conventions.md, "Screen check pipeline".
+import type { loadPreferences } from "./preferences.ts";
 import type { StoredRecord } from "./store.ts";
 import type { Problems } from "./validate.ts";
 
@@ -45,6 +46,14 @@ export interface CheckSpec {
   rule: string;
 }
 
+/** Pipeline records and settings a step may need beyond the Listing (loaded once per batch). */
+export interface ScreenWorld {
+  applications: StoredRecord[];
+  listings: StoredRecord[];
+  employers: StoredRecord[];
+  preferences: Awaited<ReturnType<typeof loadPreferences>>;
+}
+
 export interface StepContext {
   /** The Listing as stored (Discover's fields plus anything later Stages added). */
   listing: StoredRecord;
@@ -52,6 +61,8 @@ export interface StepContext {
   profile: Record<string, unknown>;
   /** This step's section of the screen worker's judgment for this Listing, if it has one. */
   judgment: unknown;
+  /** Applications, Listings, Employers and Preferences (Application limits, #42). */
+  world: ScreenWorld;
   /** Screen's clock (ISO 8601 UTC). */
   now: string;
 }

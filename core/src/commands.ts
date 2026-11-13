@@ -1,4 +1,6 @@
 // The command registry. Each later ticket adds its commands here, implemented in its own module.
+
+import { alertsWindow, recordAlerts } from "./alerts.ts";
 import { pickListings } from "./application.ts";
 import { applicationSubmitted, applyAnswer, applyPlan, applyPrepare } from "./apply.ts";
 import { applyClose, applyFill, applyHandover } from "./apply-fill.ts";
@@ -39,8 +41,10 @@ import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "
 import { tailorPending, tailorRecord } from "./tailor.ts";
 import {
   approveStatus,
+  trackAssign,
   trackDigest,
   trackDismiss,
+  trackDismissMail,
   trackPropose,
   trackRecord,
   trackWindow,
@@ -397,11 +401,16 @@ export const commands: Record<string, Command> = {
   },
 
   "application pick": {
-    usage: "application pick <listing-id>...",
+    usage: "application pick <listing-id>... [--override-limit <listing-id>,...]",
     summary:
       "Shortlist-pick Checkpoint: create one Picked Application per Listing. Runs only under " +
-      "an Approval recorded with `approval record shortlist-pick` for this exact command.",
-    run: async ({ dataDir, args }) => ({ ...(await pickListings(dataDir, args)) }),
+      "an Approval recorded with `approval record shortlist-pick` for this exact command. A " +
+      "Listing over its Application limit is refused unless named in --override-limit.",
+    run: async ({ dataDir, args, flags }) => ({
+      ...(await pickListings(dataDir, args, {
+        overrideLimit: (flags["override-limit"] ?? "").split(",").filter((x) => x !== ""),
+      })),
+    }),
   },
 
   "application status": {
@@ -502,6 +511,20 @@ export const commands: Record<string, Command> = {
     run: async ({ dataDir }) => ({ ...(await trackDigest(dataDir)) }),
   },
 
+  "track assign": {
+    usage: "track assign <message-id> <application-id>",
+    summary:
+      "Place unmatched mail (or the pick among several candidates) on one Application: " +
+      "proposes its Status change, or just teaches Track the thread and domain.",
+    run: async ({ dataDir, args }) => ({ ...(await trackAssign(dataDir, args)) }),
+  },
+
+  "track dismiss-mail": {
+    usage: "track dismiss-mail <message-id>...",
+    summary: "Drop unmatched mail; it is remembered and never raised again.",
+    run: async ({ dataDir, args }) => ({ ...(await trackDismissMail(dataDir, args)) }),
+  },
+
   "track dismiss": {
     usage: "track dismiss <n>...",
     summary: "Drop proposals; their messages are remembered and not raised again.",
@@ -527,6 +550,22 @@ export const commands: Record<string, Command> = {
       "Take pasted (or alert) LinkedIn jobs in as Listings, read their Target company's board " +
       'for the same title, and return the "LinkedIn match" questions for the discover-worker.',
     run: async (ctx) => ({ ...(await addLinkedInJobs(ctx.dataDir, await ctx.readInput())) }),
+  },
+
+  "linkedin alerts window": {
+    usage: "linkedin alerts window",
+    summary:
+      "The Gmail query the alert worker reads for LinkedIn job-alert emails, and the IDs already processed.",
+    run: async ({ dataDir }) => ({ ...(await alertsWindow(dataDir)) }),
+  },
+
+  "linkedin alerts record": {
+    usage:
+      'linkedin alerts record --input {"alerts": [{message_id, thread_id, received_at, jobs}]}',
+    summary:
+      "Take the alert worker's jobs in as LinkedIn Listings (intake alert) and record the " +
+      "alert messages in the Sync record so they are never read twice. Returns what `linkedin add` does.",
+    run: async (ctx) => ({ ...(await recordAlerts(ctx.dataDir, await ctx.readInput())) }),
   },
 
   "linkedin match": {
