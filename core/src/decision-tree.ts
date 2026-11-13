@@ -44,7 +44,7 @@ function checkClass(c: Check): string {
   return "warn";
 }
 
-function nodeId(check: string): string {
+export function nodeId(check: string): string {
   return `c_${check.replace(/[^A-Za-z0-9]/g, "_")}`;
 }
 

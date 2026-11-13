@@ -26,6 +26,7 @@ import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
+import { openView, regenerateView } from "./view.ts";
 
 export const commands: Record<string, Command> = {
   help: {
@@ -379,6 +380,25 @@ export const commands: Record<string, Command> = {
       "Destructive, needs a grant: remove Listings that never became Applications 90 days " +
       "after their latest Sighting, with their Decision trees.",
     run: async ({ dataDir }) => ({ ...(await prune(dataDir)) }),
+  },
+
+  "view build": {
+    usage: "view build",
+    summary: "Regenerate the local pipeline page (<data>/view/index.html) without opening it.",
+    run: async ({ dataDir }) => {
+      await ensureSafeDataDir(dataDir);
+      return { path: await regenerateView(dataDir) };
+    },
+  },
+
+  view: {
+    usage: "view",
+    summary: "Regenerate the local pipeline page and open it in the browser. Changes no state.",
+    run: async ({ dataDir }) => {
+      await ensureSafeDataDir(dataDir);
+      const path = await regenerateView(dataDir);
+      return { path, opened: await openView(path) };
+    },
   },
 
   "retention preview": {

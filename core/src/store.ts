@@ -98,15 +98,33 @@ export async function withWriter<T>(
 ): Promise<T> {
   await ensureSafeDataDir(dataDir);
   await acquireLock(dataDir, command);
+  let result: T;
   try {
     await assertNoOtherRun(dataDir);
     await sweepTemporaryFiles(dataDir);
-    return await fn({
+    result = await fn({
       put: (type, id, data) => putRecord(dataDir, type, id, data),
       delete: (type, id) => deleteRecord(dataDir, type, id),
     });
   } finally {
     await releaseLock(dataDir);
+  }
+  await refreshView(dataDir);
+  return result;
+}
+
+/**
+ * Regenerate the pipeline view (#43) after a write, with the lock already released. It only
+ * reads records and replaces files outside `pipeline/`, so it never calls `withWriter` and
+ * can't recurse. A failure is reported on stderr and never fails the write that triggered it.
+ */
+async function refreshView(dataDir: string): Promise<void> {
+  try {
+    await (await import("./view.ts")).regenerateView(dataDir);
+  } catch (e) {
+    process.stderr.write(
+      `Job Butler: the pipeline view was not regenerated: ${(e as Error).message}\n`,
+    );
   }
 }
 
