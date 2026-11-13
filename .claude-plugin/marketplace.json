@@ -1,0 +1,13 @@
+{
+  "name": "job-butler",
+  "owner": {
+    "name": "hari-houdini"
+  },
+  "plugins": [
+    {
+      "name": "job-butler",
+      "source": "./",
+      "description": "A personal job-search assistant built from cooperating Claude Code agents."
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Core and plugin
+
+Before adding a core command, test, skill, subagent or hook, read `docs/agents/core-conventions.md`. Run `npm run check` before committing.
+
 ## Agent skills
 
 ### Issue tracker
