@@ -1,0 +1,4 @@
+#!/bin/sh
+# Fake `gh` for tests: the default, so no test ever reaches GitHub by accident.
+echo "gh: not available in tests (use a fixture from core/test/fixtures/gh)" >&2
+exit 1
