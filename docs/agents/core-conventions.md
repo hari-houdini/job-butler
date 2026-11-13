@@ -34,6 +34,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_NOW`: fixes the clock (ISO 8601). Always read time through `now()` / `timestamp()`.
   - `JOB_BUTLER_NETWORK_FIXTURES`: serve fetches from recorded responses.
   - `JOB_BUTLER_GH`: the `gh` executable.
+  - `JOB_BUTLER_OPENER`: the program `view` opens the page with (tests).
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
   - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
@@ -228,6 +229,16 @@ Both commands are destructive: they're in `GATED_COMMANDS`, so the hook runs the
 - **Prune rule:** a Listing is pruned when no Application names it (`application.listing`) and it has no `application_id`, and its latest Sighting is at or before the cutoff (exactly 90 days old is pruned). Latest Sighting = the newest of `sightings[].seen_at`, `last_seen_at` and `first_seen_at` (else `created_at`). Gone or not doesn't matter. `prune` also removes `.mmd` files in `decision-trees/` that no Listing owns (left by dedupe merges) and temp files (`.tmp-`) there; other files are left alone. Other Listings' `similar_roles` and `distinct_from` keep the pruned IDs, so a job that comes back under the same ID stays apart from what it was ruled distinct from.
 - `record delete <type> <id>...`: all or nothing (`NOT_FOUND` deletes nothing), one `withWriter`. A Listing takes its Decision tree; one that an Application names refuses `LISTING_HAS_APPLICATION` (delete the Application first). An Application takes its Tailor folder, read from `tailor.folder` (a path relative to the data directory; anything outside it is never removed), and its Listing loses `application_id` and has its tree redrawn, so it is back on the Shortlist if Screen put it there. Other types are just the record. Returns `deleted: [{type, id}]` and `files_removed`.
 - A Stage that stores more files per record (#44 Tailor) must record them where `record delete` finds them (`tailor.folder`), or extend `deleteRecords`.
+
+## Pipeline view (set by #43)
+
+- **Code:** `core/src/view.ts`. The page is `<data>/view/index.html`, with the bundled Mermaid copied beside it as `view/mermaid.min.js` (the only `<script src>`, a relative path). The page has no external URL, `fetch` or font load, and never writes state: its only actions are tab switching, showing a Decision tree node's evidence and copying a reply (`data-copy`) to the clipboard.
+- **Regeneration happens in one place:** `withWriter` in `store.ts` calls `refreshView` after the pipeline lock is released. It only reads records and replaces files outside `pipeline/` (never calls `withWriter`), so it can't recurse or hold the lock; a failure goes to stderr and never fails the write. `withEditLock` (Profile, Preferences) doesn't regenerate. A new write path must go through `withWriter`.
+- **Commands:** `view build` regenerates; `view` regenerates and opens (`opened: false` if the opener failed). The opener is `JOB_BUTLER_OPENER` (tests), else `open` / `xdg-open` / `explorer`. Tests use `view build` and a fixture opener.
+- **Tabs:** Needs you (default): Shortlist pick (from `rankShortlist`), paused Apply (`status: paused`, field from `application.pause.field`), Handover, Digest change (an Application with `pending_change: {to, reason}`, which Track #48 should write; numbered so the button copies `approve <n>`), failed Discover sources (last Discover run, status not `ok`), then the other Applications, then Excluded in a closed `<details>`. Board: one column per Status in `STATUSES`, External badge for `origin: "external"`. Listings: list plus detail; the tree source is `renderTree`, so the page and the `.mmd` can't drift; a `click <node> call jbNode("<node>")` line is appended per check and Event log node (loose Mermaid security, needed for clicks) and the node's evidence comes from the same Check.
+- **Replies the buttons copy:** `pick <letter>`, `pick a, b`, `why <letter|application id>`, `approve <n>`, `restore <company> <title>`. A new reply must also be in the terminal digest.
+- **Colour key:** the `classDef` list in `decision-tree.ts`; the legend and the checks list use the same colours and the terminal marks (✓ pass, ! warn, ✗ fail, · not reached).
+- **Vendored Mermaid:** `core/vendor/mermaid/mermaid.min.js`, Mermaid **10.9.1** (jsDelivr `npm/mermaid@10.9.1/dist/mermaid.min.js`), MIT licence in `core/vendor/mermaid/LICENSE`. Excluded from Biome in `biome.json` (`!core/vendor`). To upgrade, replace both files, update this version, and re-run the tests. Never load it from a CDN.
 
 ## Network
 
