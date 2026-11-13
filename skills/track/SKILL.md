@@ -28,6 +28,8 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
 5. Take replies until the job seeker is done:
    - **`approve 1, 3`**: see Approving below.
    - **`dismiss 2`**: run `track dismiss 2`, then show the new `text`.
+   - **`assign <message-id> <application-id>`** (unmatched mail, or the pick among several candidates): run `track assign <message-id> <application-id>`, then show `text`. **`dismiss-mail <message-id>`**: run `track dismiss-mail <message-id>`; it is never raised again.
+   - Sure matches are pre-selected: suggest `suggested_reply`. Probable ones show "Why probable"; never suggest those without saying why.
    - **`help`**: list `replies`, each with what it does.
    - A job seeker's own word that they withdrew an application, or that a Submitted one has gone quiet: run `track propose <application-id> withdrawn|no_response --input -` with `{"reason": "<their words>"}`, then show `text`.
    - Anything else: say which replies work.
