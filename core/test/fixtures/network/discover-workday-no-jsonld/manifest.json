@@ -1,0 +1,17 @@
+{
+  "POST https://workday.wd5.myworkdayjobs.com/wday/cxs/workday/Workday/jobs {\"appliedFacets\":{},\"limit\":20,\"offset\":0,\"searchText\":\"Staff Backend Engineer\"}": {
+    "status": 200,
+    "content_type": "application/json",
+    "file": "../workday/cxs-staff-backend-engineer-0.json"
+  },
+  "https://workday.wd5.myworkdayjobs.com/Workday/job/INDPune/Sr-Associate-Support-Engineer--Adaptive-Planning-AI--ML---Platform-Operations_JR-0110344": {
+    "status": 200,
+    "content_type": "text/html",
+    "file": "../workday/job-missing.html"
+  },
+  "https://workday.wd5.myworkdayjobs.com/Workday/job/USA-OH-Mason/Sr-Software-Development-Engineer-VNDLY_JR-0110317": {
+    "status": 200,
+    "content_type": "text/html",
+    "file": "../workday/job-JR-0110317.html"
+  }
+}

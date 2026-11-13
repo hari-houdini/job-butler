@@ -1,0 +1,66 @@
+{
+  "jobPostingInfo": {
+    "id": "27b33e493de21000330f58d0d8480000",
+    "title": "Senior Software Engineer - HiredScore",
+    "jobDescription": "<p><b>Your work days are brighter here.</b></p><p></p><p>We’re obsessed with making hard work pay off, for our people, our customers, and the world around us. As a Fortune 500 company and a leading AI platform for managing people, money, and agents, we’re shaping the future of work so teams can reach their potential and focus on what matters most. The minute you join, you’ll feel it. Not just in the products we build, but in how we show up for each other. Our culture is rooted in integrity, empathy, and shared enthusiasm. We’re in this together, tackling big challenges with bold ideas and genuine care. We look for curious minds and courageous collaborators who bring sun-drenched optimism and drive. Whether you&#39;re building smarter solutions, supporting customers, or creating a space where everyone belongs, you’ll do meaningful work with Workmates who’ve got your back. In return, we’ll give you the trust to take risks, the tools to grow, the skills to develop and the support of a company invested in you for the long haul. So, if you want to inspire a brighter work day for everyone, including yourself, you’ve found a match in Workday, and we hope to be a match for you too.</p><p></p><p style=\"text-align:inherit\"></p><p style=\"text-align:left\"><b>About the Team</b></p>As the leading provider of Talent Orchestration technology, HiredScore’s artificial intelligence, automation, and deep integrations empower the world’s most innovative companies to drive critical business outcomes in recruitment, diversity hiring, and internal mobility.<br>Now part of Workday, HiredScore is seamlessly integrated into the Workday ecosystem, streamlining complex HR processes and delivering AI-driven insights that allow recruiters to focus on what matters most: top talent.<br>At our Israeli site, we operate with an agile, high-trust culture. We believe our employees are our greatest asset, and we foster an environment of continuous learning, fast feedback, and collaborative problem-solving.<br><br>The Opportunity<br>We are looking for a Senior Backend Engineer to join the Sourcing Team within our Core Engineering group in Israel. This team is the architectural engine behind our candidate-matching solutions, finding the best roles for candidates and the best talent for organizations.<br>You will lead the design of robust, scalable systems leveraging Python, React, Kubernetes, MongoDB, and Celery, while integrating MS Teams to create a seamless communication experience for recruiters and candidates alike.<br><br>Work Model: Hybrid (3 days in-office, 2 days remote) at our Israel site.<p style=\"text-align:inherit\"></p><p style=\"text-align:left\"><b>About the Role</b></p><p style=\"text-align:inherit\"></p><p style=\"text-align:inherit\"></p><p><b>Architectural Leadership:</b> Design and implement high-performance, scalable solutions for global enterprises using code generation. You will take full ownership of the lifecycle—from initial conceptualization and architectural design to implementation and global delivery.<br /><b>System Evolution: </b>Drive the evolution of our distributed systems built on Kubernetes, ensuring they meet the demands of a rapidly scaling client base.<br /><b>Production Excellence:</b> Set and maintain the gold standard for production systems. You will champion best practices in testing, observability, and proactive alerting to ensure mission-critical stability.<br /><b>AI Integration</b>: Partner closely with Product Managers and Data Scientists to embed cutting-edge AI and machine learning capabilities into our core offerings.<br /><b>Technical Mentorship: </b>Act as a force multiplier for the team. You will mentor and upskill fellow engineers, fostering their technical growth and execution potential through code reviews, design docs, and pair programming.<br /><b>Strategic Input:</b> Bring your deep industry experience to our agile processes, helping the team adapt, grow, and innovate.<br /> </p><p style=\"text-align:inherit\"></p><p style=\"text-align:left\"><b>About You</b></p><p><b>Basic Qualifications</b></p><ul><li><b>5&#43; years</b> of professional backend experience, with a focus on <b>Python</b> or <b>JavaScript/TypeScript</b> (experience in Java or Go is highly valued).</li><li>Familiarity with modern frontend frameworks like <b>React</b> or <b>Vue</b>.</li><li>A track record of designing and building complex, large-scale systems and high-concurrency architectures.</li><li>Deep experience with <b>Kubernetes (K8s) </b>and modern CI/CD pipelines.</li><li>Expertise in integrating third-party APIs and managing modern <b>message</b> <b>brokers</b> (e.g., Celery, RabbitMQ, Kafka).</li><li>Strong proficiency in both <b>SQL</b> and <b>NoSQL</b> (e.g., MongoDB, PostgreSQL) and data modeling for scale.</li><li>High efficiency in leveraging coding agents (e.g., <b>GitHub Copilot</b>, <b>Cursor, Claude</b> <b>Code</b>) to accelerate the development lifecycle.</li><li>Self-driven with the ability to navigate ambiguity and partner effectively with both internal stakeholders and external development teams.</li></ul><p><b>Other Qualifications</b></p><ul><li>Experience with platforms such as Argo <b>Workflows</b> or <b>Airflow</b>.</li><li>Hands-on experience building and maintaining robus<b>t ETL/data pipelines.</b></li><li>Demonstrated experience onboarding and mentoring junior and mid-level developers.</li></ul><p style=\"text-align:inherit\"></p><p style=\"text-align:inherit\"></p><p style=\"text-align:left\"><b>Our Approach to Flexible Work</b><br /> </p><p style=\"text-align:left\">With Hybrid Work, we’re combining the best of both worlds: in-person time and remote. Our approach enables our teams to deepen connections, maintain a strong community, and do their best work. We know that flexibility can take shape in many ways, so we require employees to work three days a week in the office and two days at home. This means you&#39;ll have the freedom to create a flexible schedule that caters to your business, team, and personal needs, while being intentional to make the most of time spent together.</p><br /><p><span style=\"color:#292a2e\">Workday is committed to providing reasonable accommodations for qualified individuals during our application process, in order to perform one or more essential functions of their job, as well as regarding the use of AI tools for employment decision-making to any degree. Please see below for more details including how to request an accommodation as a qualified veteran, due to a disability or for religious reasons, or as otherwise provided under applicable law. </span></p><br /><p><span style=\"color:#292a2e\">Workday prohibits taking adverse action against any candidate or employee for reporting a possible violation of this policy, requesting one or more work accommodations, exercising a privacy right, or cooperating in an investigation in accordance with applicable law. Any employee who retaliates against a candidate or employee for doing so may be subject to disciplinary action, up to and including termination of employment, to the fullest extent allowable under applicable law. </span></p><br /><p><span style=\"color:#292a2e\">If you require a reasonable accommodation, you may email </span><a target=\"_blank\" href=\"mailto:accommodations&#64;workday.com\"><span style=\"color:#1868db\"><u>accommodations&#64;workday.com</u></span></a><span style=\"color:#292a2e\">, as far in advance as possible.</span></p><br /><p style=\"text-align:inherit\"></p><p style=\"text-align:inherit\"></p><p style=\"text-align:left\"><b><span>Are you being referred to one of our roles? If so, ask your connection at Workday about our Employee Referral process!</span></b></p><p>At Workday, we value our candidates’ privacy and data security.  Workday will never ask candidates to apply to jobs through websites that are not Workday Careers. </p><p>  </p><p>Please be aware of sites that may ask for you to input your data in connection with a job posting that appears to be from Workday but is not.</p><p>  </p><p>In addition, Workday will never ask candidates to pay a recruiting fee, or pay for consulting or coaching services, in order to apply for a job at Workday.</p>",
+    "location": "Israel, Tel Aviv",
+    "postedOn": "Posted 30+ Days Ago",
+    "startDate": "2026-09-15",
+    "timeType": "Full Time",
+    "jobReqId": "JR-0105162",
+    "jobPostingId": "Software-Development-Engineer--Backend-_JR-0105162",
+    "jobPostingSiteId": "Workday",
+    "country": {
+      "descriptor": "Israel",
+      "id": "084562884af243748dad7c84c304d89a"
+    },
+    "canApply": true,
+    "posted": true,
+    "includeResumeParsing": true,
+    "jobRequisitionLocation": {
+      "descriptor": "Israel, Tel Aviv",
+      "country": {
+        "descriptor": "Israel",
+        "id": "084562884af243748dad7c84c304d89a",
+        "alpha2Code": "IL"
+      }
+    },
+    "remoteType": "Flex",
+    "externalUrl": "https://workday.wd5.myworkdayjobs.com/Workday/job/Israel-Tel-Aviv/Software-Development-Engineer--Backend-_JR-0105162",
+    "questionnaireId": "abb0ca13b2d2100029b6fcc02ba50000"
+  },
+  "hiringOrganization": {
+    "name": "Workday Israel Ltd",
+    "url": ""
+  },
+  "similarJobs": [
+    {
+      "title": "Machine Learning Engineer - HiredScore",
+      "externalPath": "/job/Israel-Tel-Aviv/Machine-Learning-Engineer---HiredScore_JR-0107799-1",
+      "timeType": "Full Time",
+      "locationsText": "Israel, Tel Aviv",
+      "postedOn": "Posted 30+ Days Ago",
+      "startDate": "2026-09-23",
+      "remoteType": "Flex"
+    },
+    {
+      "title": "Team Lead Software Engineering - HiredScore",
+      "externalPath": "/job/Israel-Tel-Aviv/Manager--Software-Development-Engineering_JR-0102237",
+      "timeType": "Full Time",
+      "locationsText": "Israel, Tel Aviv",
+      "postedOn": "Posted 30+ Days Ago",
+      "startDate": "2026-09-15",
+      "remoteType": "Flex"
+    },
+    {
+      "title": "LLM Engineer - Paradox",
+      "externalPath": "/job/Israel-Tel-Aviv/LLM-Engineer_JR-0107197",
+      "timeType": "Full Time",
+      "locationsText": "Israel, Tel Aviv",
+      "postedOn": "Posted 30+ Days Ago",
+      "startDate": "2026-09-23",
+      "remoteType": "Flex"
+    }
+  ],
+  "userAuthenticated": false
+}

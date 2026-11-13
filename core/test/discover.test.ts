@@ -16,9 +16,10 @@ const MISSING_BOARD = {
   board: { ats: "greenhouse", token: "jb-no-such-board" },
   confirmed_at: "2026-01-15T08:58:00.000Z",
 };
-const FABRIKAM_WORKDAY = {
-  name: "Fabrikam",
-  board: { ats: "workday", tenant: "fabrikam", instance: "wd5", site: "Careers" },
+/** A Workday site cxs answers with 404 (recorded). */
+const MISSING_WORKDAY_SITE = {
+  name: "Workday",
+  board: { ats: "workday", tenant: "workday", instance: "wd5", site: "NoSuchSite" },
   confirmed_at: "2026-01-15T08:59:00.000Z",
 };
 
@@ -163,7 +164,7 @@ test("each Listing records its first-seen date and one Sighting per Discover run
 
 test("a Discover run records when it ran, the sources searched and the ones that failed", async (t) => {
   const dataDir = join(tempDir(t), "data");
-  await setUp(dataDir, [GREENHOUSE, MISSING_BOARD, FABRIKAM_WORKDAY]);
+  await setUp(dataDir, [GREENHOUSE, MISSING_BOARD, MISSING_WORKDAY_SITE]);
   const started = await runCli(["run", "start", "discover"], { dataDir });
 
   await discover(dataDir, { JOB_BUTLER_NOW: "2026-11-13T07:00:00.000Z" });
@@ -178,13 +179,14 @@ test("a Discover run records when it ran, the sources searched and the ones that
     [
       ["greenhouse:greenhouse", "Greenhouse", "ok", 3],
       ["greenhouse:jb-no-such-board", "Gone Ltd", "failed", null],
-      ["workday:fabrikam:Careers", "Fabrikam", "skipped", null],
+      ["workday:workday:NoSuchSite", "Workday", "failed", null],
     ],
   );
   assert.equal(sources[0]?.error, null);
   assert.equal(sources[1]?.error?.code, "BOARD_NOT_FOUND");
   assert.match(sources[1]?.error?.message ?? "", /jb-no-such-board.*404/);
-  assert.match(sources[2]?.error?.message ?? "", /can't read Workday boards yet/);
+  assert.equal(sources[2]?.error?.code, "BOARD_NOT_FOUND");
+  assert.match(sources[2]?.error?.message ?? "", /Workday board "workday\/NoSuchSite".*404/);
   assert.equal((await listings(dataDir)).length, 3);
 });
 
