@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ensureSafeDataDir } from "./data-dir.ts";
 import { fault, timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
-import { acquireLock, releaseLock } from "./lock.ts";
+import { acquireLock, assertNoOtherRun, assertNoRun, releaseLock } from "./lock.ts";
 
 export const SCHEMA_VERSION = 1;
 
@@ -78,7 +78,8 @@ export interface StoreWriter {
 }
 
 /**
- * Run `fn` holding the pipeline lock. Checks the data directory is safe first, clears
+ * Run `fn` holding the pipeline lock; refuses while another session's run holds the run
+ * lock. Checks the data directory is safe first, clears
  * temporary files left by an interrupted write, and releases the lock afterwards.
  * Put all of one command's writes in one `withWriter` call.
  */
@@ -90,11 +91,32 @@ export async function withWriter<T>(
   await ensureSafeDataDir(dataDir);
   await acquireLock(dataDir, command);
   try {
+    await assertNoOtherRun(dataDir);
     await sweepTemporaryFiles(dataDir);
     return await fn({
       put: (type, id, data) => putRecord(dataDir, type, id, data),
       delete: (type, id) => deleteRecord(dataDir, type, id),
     });
+  } finally {
+    await releaseLock(dataDir);
+  }
+}
+
+/**
+ * Run `fn` holding the pipeline lock, for a file that must not change mid-run (Profile,
+ * Preferences): refuses with LOCKED while any run holds the run lock, this session's too.
+ */
+export async function withEditLock<T>(
+  dataDir: string,
+  command: string,
+  what: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  await ensureSafeDataDir(dataDir);
+  await acquireLock(dataDir, command);
+  try {
+    await assertNoRun(dataDir, what);
+    return await fn();
   } finally {
     await releaseLock(dataDir);
   }
@@ -137,7 +159,7 @@ function withoutReservedFields(data: Record<string, unknown>): Record<string, un
 }
 
 /** Write to <file>.tmp-<pid>, flush to disk, then rename over the real file. */
-export async function writeThenReplace(file: string, content: string): Promise<void> {
+export async function writeThenReplace(file: string, content: string | Buffer): Promise<void> {
   const tmp = `${file}${TMP_MARKER}${process.pid}`;
   const handle = await open(tmp, "w", 0o600);
   try {

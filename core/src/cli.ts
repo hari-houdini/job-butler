@@ -37,6 +37,8 @@ export interface Command {
 const flagOptions = {
   "data-dir": { type: "string" },
   input: { type: "string" },
+  run: { type: "string" },
+  section: { type: "string" },
 } as const;
 
 async function main(argv: string[]): Promise<Record<string, unknown>> {

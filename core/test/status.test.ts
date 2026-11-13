@@ -12,5 +12,5 @@ test("status with no Profile reports it missing and points to setup", async (t) 
   assert.equal(r.json.ok, true);
   assert.equal(r.json.profile, "missing");
   assert.equal(r.json.next, "setup");
-  assert.match(String(r.json.message), /\/job-butler setup/);
+  assert.match(String(r.json.message), /\/job-butler:setup/);
 });
