@@ -21,6 +21,7 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
 1. Run `run start screen`. On a refusal, relay it and stop: there is no run to end. Keep `run_id` and `joined`.
 2. Run `screen pending`. With `listings` empty, go to step 4.
 3. Rate them with one batch dispatch:
+   - When the Profile's Sponsorship is a criterion, first run `employer match --input -` with `{"company", "town"?, "description"}` for each Listing's company, so Screen can check the register (an unmatched Employer gives an unknown verdict).
    - Dispatch the `screen-worker` subagent once, with the whole `screen pending` JSON (`listings` and `profile`) in its prompt.
    - Write its reply, exactly as returned, to the `judgments_file` path with the Write tool.
    - Run `screen record --input <judgments_file>`. On `JUDGMENT_INVALID`, dispatch the worker once more with the same JSON plus the error message, write and record again; after a second refusal, relay it and go to step 4.

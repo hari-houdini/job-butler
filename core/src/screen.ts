@@ -20,6 +20,7 @@ import { assertProfileComplete, readProfile } from "./profile.ts";
 import { reapplyRestore } from "./restore.ts";
 import { denyStep, scamStep } from "./scam-gate.ts";
 import { type Check, marksFor, notReached, type ScreenStep } from "./screen-check.ts";
+import { loadSponsorshipContext, type SponsorshipContext, sponsorshipStep } from "./sponsorship.ts";
 import { getRecord, listRecords, type StoredRecord, withWriter } from "./store.ts";
 import { isObject, type Problems } from "./validate.ts";
 
@@ -28,7 +29,7 @@ import { isObject, type Problems } from "./validate.ts";
  *   scam gate and deny list (#39, effect "exclude"), ghost score (#39, "flag"),
  *   Sponsorship (#41, "flag"/"badge"), fit (#34), Application limit (#42, "flag"/"badge").
  */
-export const SCREEN_STEPS: ScreenStep[] = [scamStep, denyStep, ghostStep, fitStep];
+export const SCREEN_STEPS: ScreenStep[] = [scamStep, denyStep, ghostStep, sponsorshipStep, fitStep];
 
 /** What `screen` holds on a Listing. */
 export interface ScreenResult {
@@ -127,6 +128,7 @@ function runSteps(
   profile: Record<string, unknown>,
   judgment: Judgment,
   now: string,
+  sponsorship?: SponsorshipContext,
 ): Pick<ScreenResult, "outcome" | "excluded_by" | "checks" | "flags" | "badges"> &
   Record<string, unknown> {
   const checks: Check[] = [];
@@ -139,6 +141,7 @@ function runSteps(
       profile,
       judgment: step.judgment ? judgment[step.judgment.key] : undefined,
       now,
+      sponsorship,
     });
     Object.assign(stored, result.stored);
     if (excludedBy !== null) {
@@ -195,12 +198,13 @@ export async function screenRecord(dataDir: string, input: unknown) {
       todo.push({ listing, judgment });
     }
     const recorded: string[] = [];
+    const sponsorship = await loadSponsorshipContext(dataDir, profile);
     for (const { listing, judgment } of todo) {
       const screen = reapplyRestore(listing, {
         screened_at: now,
         run_id: runId,
         rescore_requested_at: null,
-        ...runSteps(listing, profile, judgment, now),
+        ...runSteps(listing, profile, judgment, now, sponsorship),
       } as ScreenResult) as ScreenResult;
       await w.put("listing", listing.id, {
         ...listing,
