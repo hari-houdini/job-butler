@@ -421,7 +421,10 @@ test("the track worker's tools are Gmail reads that the hook allows, and nothing
   });
   assert.equal(marked.code, 0);
   for (const tool of tools) {
-    assert.match(tool, /^mcp__claude_ai_Gmail__(search_threads|get_thread|get_message)$/);
+    assert.match(
+      tool,
+      /^mcp__claude_ai_(Gmail__(search_threads|get_thread|get_message)|Google_Calendar__(search_events|get_event|list_events))$/,
+    );
     const r = await runCli(["hook", "pre-tool-use"], {
       dataDir,
       input: { session_id: SESSION, tool_name: tool, tool_input: {} },

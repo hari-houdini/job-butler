@@ -352,6 +352,18 @@ Detected by: a name pattern (recruitment, recruiter, resourcing, staffing, talen
 - **Event log `message`:** `{id, thread_id, from, subject, received_at, classification, matched_by}`, only on entries from Track.
 - **Decision tree:** each Event log entry with a `message` gets an outcome node `e<n>m` (class `out`, linked `e<n> -.- e<n>m`) citing the classification, subject, sender, time, message ID and the ladder step that matched.
 
+## Full matching ladder and Calendar (set by #49)
+
+`core/src/track.ts`; tests `core/test/track-ladder.test.ts`.
+
+- **Steps 3 to 5 in `LADDER`:** 3 `mail domain` (the sender's domain, or a subdomain of it, is in `mail_domains` of an open Application or its Employer; vendor and free-mail domains never match, `learnableDomain`, `FREE_MAIL_DOMAINS`), 4 `named sender` (the From display name or the worker's `signature` names the Application's company, whole words, legal suffixes ignored), 5 `body` (the worker's `company`, narrowed by `role` when that fits). Steps 3 to 5 skip closed (Rejected, Withdrawn) Applications. The first step with exactly one Application wins; otherwise the candidates from all steps are ranked (steps that found it, role fit, open) into `unmatched[].ranking` with a reason each.
+- **Worker JSON additions:** optional `company`, `role`, `signature`, `source` (`email` or `calendar`).
+- **Confidence:** Proposal `confidence` is `sure` (steps 1 and 2; step 3 when the Application is the only open one at its Employer) or `probable` (the rest, with a `note` shown as "Why probable"). Digest items carry `preselected` (sure only) and the digest gives `suggested_reply`. Digest `unmatched_items` list each message with `ats_mail` (a vendor sender) and its ranked `candidates`.
+- **Unmatched:** `track assign <message-id> <application-id>` places it on one Application (proposal "assigned by you", sure; with no Status change it only learns). `track dismiss-mail <message-id>...` adds it to `dismissed_ids`, never raised again. A message leaves `unmatched` once, so it can't update two Applications (`NOT_UNMATCHED` otherwise).
+- **Learning** (`learnFrom`, on approval or a no-change assign): the thread joins `gmail_threads` and the sender's learnable domain joins `mail_domains` on the Application and, when its Listing (or the Application) names an `employer` that has a record, on that Employer record.
+- **Employer scope** is the `employer` ID when both Applications have one, else the normalised company name. **Decision:** the Employer record's shape is owned by Screen (#40); Track only reads and appends `mail_domains`, and keeps its own copy on the Application so it works without one.
+- **Calendar:** the worker (now also `search_events`, `get_event`, `list_events` of the Google Calendar connector, nothing that writes) returns events as messages with `source: "calendar"`, the organizer in `from`, the event ID as `thread_id`. The core forces their classification to `interview_invite`. Step 1 matches `calendar_events` (learned the same way) instead of `gmail_threads`; MessageRef carries `source`.
+
 ## LinkedIn job-alert emails (set by #51)
 
 `core/src/alerts.ts`; worker `agents/alert-worker.md` (`model: haiku`, tools exactly the three read-only Gmail tools, the Track worker's allowlist); route in `skills/discover/SKILL.md` ("Taking in LinkedIn alert emails"), also offered from Track as the reply `alerts`.

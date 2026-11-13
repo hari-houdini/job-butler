@@ -39,8 +39,10 @@ import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "
 import { tailorPending, tailorRecord } from "./tailor.ts";
 import {
   approveStatus,
+  trackAssign,
   trackDigest,
   trackDismiss,
+  trackDismissMail,
   trackPropose,
   trackRecord,
   trackWindow,
@@ -445,6 +447,20 @@ export const commands: Record<string, Command> = {
     usage: "track digest",
     summary: "The numbered Status-change proposals waiting for the job seeker's approval.",
     run: async ({ dataDir }) => ({ ...(await trackDigest(dataDir)) }),
+  },
+
+  "track assign": {
+    usage: "track assign <message-id> <application-id>",
+    summary:
+      "Place unmatched mail (or the pick among several candidates) on one Application: " +
+      "proposes its Status change, or just teaches Track the thread and domain.",
+    run: async ({ dataDir, args }) => ({ ...(await trackAssign(dataDir, args)) }),
+  },
+
+  "track dismiss-mail": {
+    usage: "track dismiss-mail <message-id>...",
+    summary: "Drop unmatched mail; it is remembered and never raised again.",
+    run: async ({ dataDir, args }) => ({ ...(await trackDismissMail(dataDir, args)) }),
   },
 
   "track dismiss": {

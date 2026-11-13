@@ -17,7 +17,13 @@ import { writeTrees } from "./decision-tree.ts";
 import { atsPostingId } from "./dedupe.ts";
 import { now, timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
-import { getRecord, listRecords, type StoredRecord, withWriter } from "./store.ts";
+import {
+  getRecord,
+  listRecords,
+  type StoredRecord,
+  type StoreWriter,
+  withWriter,
+} from "./store.ts";
 import { isObject, type Problems } from "./validate.ts";
 
 export const CONNECTOR = "gmail";
@@ -36,11 +42,52 @@ export const VENDOR_DOMAINS = [
   "goodtime.io",
 ];
 
+/** Personal mail providers (and Google's calendar-group address): never an Employer's domain. */
+export const FREE_MAIL_DOMAINS = [
+  "gmail.com",
+  "googlemail.com",
+  "calendar.google.com",
+  "outlook.com",
+  "hotmail.com",
+  "hotmail.co.uk",
+  "live.com",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "ymail.com",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "mail.com",
+  "zoho.com",
+];
+
+/** The sender's domain, lower case: the text after the last "@" of the address. */
+export function senderDomain(from: string): string | undefined {
+  const m = from.toLowerCase().match(/@([a-z0-9.-]+)[^@]*$/);
+  return m?.[1]?.replace(/\.+$/, "");
+}
+
+const underDomain = (domain: string, list: string[]) =>
+  list.some((d) => domain === d || domain.endsWith(`.${d}`));
+
 /** True when the sender's domain is a vendor domain or a subdomain of one. */
 export function isVendorSender(from: string): boolean {
-  const domain = from.toLowerCase().match(/@([a-z0-9.-]+)/)?.[1];
-  if (domain === undefined) return false;
-  return VENDOR_DOMAINS.some((v) => domain === v || domain.endsWith(`.${v}`));
+  const domain = senderDomain(from);
+  return domain !== undefined && underDomain(domain, VENDOR_DOMAINS);
+}
+
+/** The domain a sender can teach Track: never a vendor, free-mail or missing domain. */
+export function learnableDomain(from: string): string | undefined {
+  const domain = senderDomain(from);
+  if (domain === undefined || !domain.includes(".")) return undefined;
+  if (underDomain(domain, VENDOR_DOMAINS) || underDomain(domain, FREE_MAIL_DOMAINS)) {
+    return undefined;
+  }
+  return domain;
 }
 
 export const CLASSIFICATIONS = [
@@ -95,6 +142,12 @@ export interface ClassifiedMessage {
   received_at: string;
   classification: Classification;
   ats?: Ats;
+  /** "calendar" for a Calendar event: `message_id` is its event ID, `from` its organizer. */
+  source?: "email" | "calendar";
+  /** What the body names, for ladder step 5, and the sender's signature, for step 4. */
+  company?: string;
+  role?: string;
+  signature?: string;
 }
 
 export interface MessageRef {
@@ -105,6 +158,7 @@ export interface MessageRef {
   received_at: string;
   classification: string;
   matched_by: string;
+  source?: "email" | "calendar";
 }
 
 export interface Proposal {
@@ -113,8 +167,10 @@ export interface Proposal {
   from: Status;
   to: Status;
   reason: string;
-  /** "sure" when the ladder matched on the thread or an ATS ID. */
-  confidence: "sure";
+  /** "sure": thread, ATS ID, or a domain with one open Application; else "probable". */
+  confidence: "sure" | "probable";
+  /** For a probable match: the one-line reason it is only probable. */
+  note?: string;
   message: MessageRef | null;
   state: "pending" | "approved" | "dismissed";
   proposed_at: string;
@@ -125,6 +181,8 @@ export interface Unmatched {
   message: ClassifiedMessage;
   /** Application IDs the ladder left, when it found several. Empty when it found none. */
   candidates: string[];
+  /** The candidates, ranked best first, each with why. */
+  ranking?: { application_id: string; reason: string }[];
   at: string;
 }
 
@@ -194,8 +252,13 @@ export async function trackWindow(dataDir: string) {
 // #49 adds steps 3 to 5 (learned domain, named sender, body) to LADDER; nothing else changes.
 
 export interface LadderContext {
-  /** Every Application, and for each the aliases of its Listing. */
-  apps: { app: StoredRecord; aliases: AliasInfo[] }[];
+  /** Every Application, the aliases of its Listing, and its Employer record when it has one. */
+  apps: {
+    app: StoredRecord;
+    aliases: AliasInfo[];
+    employer?: StoredRecord;
+    employerId?: string;
+  }[];
 }
 
 interface AliasInfo {
@@ -214,15 +277,19 @@ export interface LadderStep {
 
 const lower = (s: string | undefined | null): string => (s ?? "").trim().toLowerCase();
 
+/** Closed Applications can't take new mail: steps 3 to 5 leave them out. */
+const CLOSED: string[] = ["rejected", "withdrawn"];
+const isOpen = (app: StoredRecord) => !CLOSED.includes(String(app.status));
+
 const byThread: LadderStep = {
   step: 1,
   name: "thread",
-  find: (m, ctx) =>
-    ctx.apps
-      .filter(
-        ({ app }) => Array.isArray(app.gmail_threads) && app.gmail_threads.includes(m.thread_id),
-      )
-      .map((x) => x.app),
+  find: (m, ctx) => {
+    const key = m.source === "calendar" ? "calendar_events" : "gmail_threads";
+    return ctx.apps
+      .filter(({ app }) => Array.isArray(app[key]) && (app[key] as string[]).includes(m.thread_id))
+      .map((x) => x.app);
+  },
 };
 
 function slugOf(a: AliasInfo): string {
@@ -268,25 +335,195 @@ const byAtsId: LadderStep = {
   },
 };
 
-export const LADDER: LadderStep[] = [byThread, byAtsId];
+const stringList = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map(lower) : [];
+
+/** The domains Track has learned for an Application: its own and its Employer's. */
+function mailDomains(entry: LadderContext["apps"][number]): string[] {
+  return [...stringList(entry.app.mail_domains), ...stringList(entry.employer?.mail_domains)];
+}
+
+/** Applications that share an Employer: the Employer record, else the normalised company. */
+function sameEmployer(a: LadderContext["apps"][number], b: LadderContext["apps"][number]) {
+  const ea = a.employerId;
+  const eb = b.employerId;
+  if (ea !== undefined && eb !== undefined) return ea === eb;
+  return (
+    nameTokens(String(a.app.company)).join(" ") === nameTokens(String(b.app.company)).join(" ")
+  );
+}
+
+/** Step 3: the sender's domain is one Track learned for an open Application or its Employer. */
+const byMailDomain: LadderStep = {
+  step: 3,
+  name: "mail domain",
+  find(m, ctx) {
+    const domain = learnableDomain(m.from);
+    if (domain === undefined) return [];
+    return ctx.apps
+      .filter((e) => isOpen(e.app) && mailDomains(e).some((d) => underDomain(domain, [d])))
+      .map((e) => e.app);
+  },
+};
+
+const LEGAL = new Set(["inc", "ltd", "limited", "llc", "plc", "corp", "corporation", "gmbh", "co"]);
+
+/** Lower-case words of a name, without punctuation or a legal suffix. */
+function nameTokens(text: string): string[] {
+  const words = text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((w) => w !== "");
+  const trimmed = words.filter((w) => !LEGAL.has(w));
+  return trimmed.length > 0 ? trimmed : words;
+}
+
+/** True when `needle`'s words appear in `haystack` as a run of whole words. */
+function containsName(haystack: string, needle: string): boolean {
+  const h = haystack
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const n = nameTokens(needle).join(" ");
+  return n !== "" && ` ${h} `.includes(` ${n} `);
+}
+
+/** The display name of the sender: "Acme Talent <jobs@acme.example>" gives "Acme Talent". */
+const displayName = (from: string): string =>
+  from
+    .replace(/<[^>]*>/g, "")
+    .replace(/\S+@\S+/g, "")
+    .replace(/"/g, "");
+
+/** Step 4: the sender's display name or signature names an open Application's company. */
+const bySenderName: LadderStep = {
+  step: 4,
+  name: "named sender",
+  find(m, ctx) {
+    const text = `${displayName(m.from)}\n${m.signature ?? ""}`;
+    return ctx.apps
+      .filter((e) => isOpen(e.app) && containsName(text, String(e.app.company)))
+      .map((e) => e.app);
+  },
+};
+
+const roleMatches = (title: string, role: string): boolean => {
+  const a = nameTokens(title).join(" ");
+  const b = nameTokens(role).join(" ");
+  return (
+    a !== "" && b !== "" && (a === b || ` ${a} `.includes(` ${b} `) || ` ${b} `.includes(` ${a} `))
+  );
+};
+
+/** Step 5: the body names the company, and the role when it says one. */
+const byBody: LadderStep = {
+  step: 5,
+  name: "body",
+  find(m, ctx) {
+    if (m.company === undefined || m.company.trim() === "") return [];
+    const company = ctx.apps.filter(
+      (e) => isOpen(e.app) && containsName(m.company as string, String(e.app.company)),
+    );
+    const role = m.role?.trim();
+    if (role) {
+      const narrowed = company.filter((e) => roleMatches(String(e.app.title), role));
+      if (narrowed.length > 0) return narrowed.map((x) => x.app);
+    }
+    return company.map((x) => x.app);
+  },
+};
+
+export const LADDER: LadderStep[] = [byThread, byAtsId, byMailDomain, bySenderName, byBody];
+
+export interface Candidate {
+  app: StoredRecord;
+  reason: string;
+}
 
 export type Match =
-  | { kind: "matched"; app: StoredRecord; step: LadderStep }
-  | { kind: "ambiguous"; candidates: StoredRecord[] }
+  | {
+      kind: "matched";
+      app: StoredRecord;
+      step: LadderStep;
+      confidence: "sure" | "probable";
+      /** Why a probable match is only probable; absent for a sure one. */
+      note?: string;
+    }
+  | { kind: "ambiguous"; candidates: Candidate[] }
   | { kind: "unmatched" };
 
+/** One line on how a step found the Application, for the digest. */
+function stepReason(step: LadderStep, m: ClassifiedMessage, app: StoredRecord): string {
+  const company = String(app.company);
+  switch (step.step) {
+    case 3:
+      return `mail from ${senderDomain(m.from)}, a mail domain learned for ${company}`;
+    case 4:
+      return `the sender or signature names ${company}`;
+    case 5:
+      return m.role
+        ? `the message names ${company} and "${m.role}"`
+        : `the message names ${company}`;
+    default:
+      return `${step.name} matches`;
+  }
+}
+
+function openAtEmployer(app: StoredRecord, ctx: LadderContext): number {
+  const me = ctx.apps.find((e) => e.app.id === app.id);
+  if (me === undefined) return 1;
+  return ctx.apps.filter((e) => isOpen(e.app) && sameEmployer(e, me)).length;
+}
+
 export function matchMessage(message: ClassifiedMessage, ctx: LadderContext): Match {
-  let several: StoredRecord[] = [];
+  const tally = new Map<string, { app: StoredRecord; steps: LadderStep[] }>();
   for (const step of LADDER) {
     const found = [...new Map(step.find(message, ctx).map((a) => [a.id, a])).values()];
-    if (found.length === 1) return { kind: "matched", app: found[0] as StoredRecord, step };
-    if (found.length > 1 && several.length === 0) several = found;
+    if (found.length === 1) {
+      const app = found[0] as StoredRecord;
+      const sure = step.step <= 2 || (step.step === 3 && openAtEmployer(app, ctx) === 1);
+      return {
+        kind: "matched",
+        app,
+        step,
+        confidence: sure ? "sure" : "probable",
+        ...(sure
+          ? {}
+          : {
+              note:
+                step.step === 3
+                  ? `${stepReason(step, message, app)}, but ${String(app.company)} has other open Applications`
+                  : stepReason(step, message, app),
+            }),
+      };
+    }
+    for (const app of found) {
+      const entry = tally.get(app.id) ?? { app, steps: [] };
+      entry.steps.push(step);
+      tally.set(app.id, entry);
+    }
   }
-  return several.length > 0 ? { kind: "ambiguous", candidates: several } : { kind: "unmatched" };
+  if (tally.size === 0) return { kind: "unmatched" };
+  const role = message.role?.trim();
+  const score = (x: { app: StoredRecord; steps: LadderStep[] }) =>
+    x.steps.length +
+    (role && roleMatches(String(x.app.title), role) ? 0.5 : 0) +
+    (isOpen(x.app) ? 0.1 : 0);
+  const candidates = [...tally.values()]
+    .sort((a, b) => score(b) - score(a) || String(a.app.id).localeCompare(String(b.app.id)))
+    .map((x) => ({
+      app: x.app,
+      reason: x.steps.map((s) => stepReason(s, message, x.app)).join("; "),
+    }));
+  return { kind: "ambiguous", candidates };
 }
 
 async function ladderContext(dataDir: string): Promise<LadderContext> {
   const listings = new Map((await listRecords(dataDir, "listing")).map((l) => [l.id, l]));
+  const employers = new Map((await listRecords(dataDir, "employer")).map((e) => [e.id, e]));
   const apps = (await listRecords(dataDir, "application")).map((app) => {
     const listing = typeof app.listing === "string" ? listings.get(app.listing) : undefined;
     const aliases = ((listing?.aliases as Record<string, unknown>[] | undefined) ?? []).map(
@@ -297,7 +534,14 @@ async function ladderContext(dataDir: string): Promise<LadderContext> {
         source_job_id: typeof a.source_job_id === "string" ? a.source_job_id : null,
       }),
     );
-    return { app, aliases };
+    const employerId = listing?.employer ?? app.employer;
+    const employer = typeof employerId === "string" ? employers.get(employerId) : undefined;
+    return {
+      app,
+      aliases,
+      ...(employer ? { employer } : {}),
+      ...(typeof employerId === "string" ? { employerId } : {}),
+    };
   });
   return { apps };
 }
@@ -322,7 +566,18 @@ function parseMessages(input: unknown): ClassifiedMessage[] {
         problems.push(`${at}.${key} must be non-empty text`);
       }
     }
-    if (!CLASSIFICATIONS.includes(m.classification as Classification)) {
+    if (m.source !== undefined && m.source !== "email" && m.source !== "calendar") {
+      problems.push(`${at}.source must be "email" or "calendar"`);
+    }
+    for (const key of ["company", "role", "signature"]) {
+      if (m[key] !== undefined && m[key] !== null && typeof m[key] !== "string") {
+        problems.push(`${at}.${key} must be text`);
+      }
+    }
+    if (m.source === "calendar") {
+      // A Calendar event is an interview invite, whatever the worker says.
+      m.classification = "interview_invite";
+    } else if (!CLASSIFICATIONS.includes(m.classification as Classification)) {
       problems.push(`${at}.classification must be one of: ${CLASSIFICATIONS.join(", ")}`);
     }
     if (m.ats !== undefined) {
@@ -347,6 +602,19 @@ function parseMessages(input: unknown): ClassifiedMessage[] {
     );
   }
   return list as ClassifiedMessage[];
+}
+
+function messageRef(message: ClassifiedMessage, matchedBy: string): MessageRef {
+  return {
+    id: message.message_id,
+    thread_id: message.thread_id,
+    from: message.from,
+    subject: message.subject,
+    received_at: message.received_at,
+    classification: message.classification,
+    matched_by: matchedBy,
+    ...(message.source === "calendar" ? { source: "calendar" as const } : {}),
+  };
 }
 
 export async function trackRecord(dataDir: string, input: unknown) {
@@ -380,8 +648,13 @@ export async function trackRecord(dataDir: string, input: unknown) {
       const match = matchMessage(message, ctx);
       if (match.kind !== "matched") {
         result.unmatched++;
-        const candidates = match.kind === "ambiguous" ? match.candidates.map((a) => a.id) : [];
-        unmatched.push({ message, candidates, at });
+        const ranked = match.kind === "ambiguous" ? match.candidates : [];
+        unmatched.push({
+          message,
+          candidates: ranked.map((c) => c.app.id),
+          ranking: ranked.map((c) => ({ application_id: c.app.id, reason: c.reason })),
+          at,
+        });
         continue;
       }
       const rule = PROPOSES[message.classification];
@@ -399,16 +672,9 @@ export async function trackRecord(dataDir: string, input: unknown) {
         from: current,
         to: rule.to,
         reason: `${REASON_LEAD[message.classification]} from ${message.from}: "${message.subject}".`,
-        confidence: "sure",
-        message: {
-          id: message.message_id,
-          thread_id: message.thread_id,
-          from: message.from,
-          subject: message.subject,
-          received_at: message.received_at,
-          classification: message.classification,
-          matched_by: `${match.step.name} (step ${match.step.step})`,
-        },
+        confidence: match.confidence,
+        ...(match.note ? { note: match.note } : {}),
+        message: messageRef(message, `${match.step.name} (step ${match.step.step})`),
         state: "pending",
         proposed_at: at,
         decided_at: null,
@@ -511,9 +777,127 @@ export async function trackDismiss(dataDir: string, args: string[]) {
   });
 }
 
+const notUnmatched = (id: string) =>
+  new CoreError("NOT_UNMATCHED", `Message "${id}" isn't waiting in the unmatched list.`, {
+    message_id: id,
+  });
+
+/** Add what an approved or assigned message teaches: its thread and the sender's domain. */
+export async function learnFrom(
+  w: StoreWriter,
+  dataDir: string,
+  app: StoredRecord,
+  ref: Pick<MessageRef, "thread_id" | "from" | "source">,
+): Promise<StoredRecord> {
+  const key = ref.source === "calendar" ? "calendar_events" : "gmail_threads";
+  const ids = (app[key] as string[] | undefined) ?? [];
+  const domain = learnableDomain(ref.from);
+  const domains = (app.mail_domains as string[] | undefined) ?? [];
+  const next = {
+    ...app,
+    [key]: ids.includes(ref.thread_id) ? ids : [...ids, ref.thread_id],
+    ...(domain !== undefined && !domains.includes(domain)
+      ? { mail_domains: [...domains, domain] }
+      : {}),
+  };
+  if (domain !== undefined && typeof app.listing === "string") {
+    const listing = await getRecord(dataDir, "listing", app.listing);
+    const employerId = listing?.employer ?? app.employer;
+    const employer =
+      typeof employerId === "string" ? await getRecord(dataDir, "employer", employerId) : undefined;
+    if (employer !== undefined) {
+      const known = (employer.mail_domains as string[] | undefined) ?? [];
+      if (!known.includes(domain)) {
+        await w.put("employer", employer.id, { ...employer, mail_domains: [...known, domain] });
+      }
+    }
+  }
+  return w.put("application", app.id, next);
+}
+
+/**
+ * `track assign <message-id> <application-id>`: the job seeker places unmatched mail on one
+ * Application (the pick when several fit). It proposes the Status change like a match would;
+ * with nothing to change it only teaches Track the thread and domain.
+ */
+export async function trackAssign(dataDir: string, args: string[]) {
+  const [messageId, appId] = args;
+  if (messageId === undefined || appId === undefined) {
+    throw usageError("track assign: <message-id> and <application-id> are required");
+  }
+  return withWriter(dataDir, "track assign", async (w) => {
+    const fields = syncFields(await readSync(dataDir));
+    const item = fields.unmatched.find((u) => u.message.message_id === messageId);
+    if (item === undefined) throw notUnmatched(messageId);
+    const app = await getRecord(dataDir, "application", appId);
+    if (app === undefined) {
+      throw new CoreError("NOT_FOUND", `There's no Application "${appId}".`, {
+        application_id: appId,
+      });
+    }
+    const message = item.message;
+    const at = timestamp();
+    const rule = PROPOSES[message.classification];
+    const current = app.status as Status;
+    const proposals = [...fields.proposals];
+    let next = fields.next_n;
+    const proposed: number[] = [];
+    if (rule?.from.includes(current)) {
+      proposals.push({
+        n: next,
+        application_id: appId,
+        from: current,
+        to: rule.to,
+        reason: `${REASON_LEAD[message.classification]} from ${message.from}: "${message.subject}".`,
+        confidence: "sure",
+        message: messageRef(message, "assigned by you"),
+        state: "pending",
+        proposed_at: at,
+        decided_at: null,
+      });
+      proposed.push(next++);
+    } else {
+      await learnFrom(w, dataDir, app, {
+        thread_id: message.thread_id,
+        from: message.from,
+        source: message.source,
+      });
+    }
+    await w.put("sync", CONNECTOR, {
+      ...fields,
+      proposals,
+      next_n: next,
+      unmatched: fields.unmatched.filter((u) => u.message.message_id !== messageId),
+    });
+    return { assigned: messageId, proposed, ...(await trackDigest(dataDir)) };
+  });
+}
+
+/** `track dismiss-mail <message-id>...`: drop unmatched mail; it is never raised again. */
+export async function trackDismissMail(dataDir: string, args: string[]) {
+  if (args.length === 0) throw usageError("track dismiss-mail: give message IDs");
+  return withWriter(dataDir, "track dismiss-mail", async (w) => {
+    const fields = syncFields(await readSync(dataDir));
+    for (const id of args) {
+      if (!fields.unmatched.some((u) => u.message.message_id === id)) throw notUnmatched(id);
+    }
+    await w.put("sync", CONNECTOR, {
+      ...fields,
+      dismissed_ids: [...new Set([...fields.dismissed_ids, ...args])],
+      unmatched: fields.unmatched.filter((u) => !args.includes(u.message.message_id)),
+    });
+    return { dismissed_mail: args, ...(await trackDigest(dataDir)) };
+  });
+}
+
 export const REPLIES = [
   { reply: "approve <n>[, <n>]", does: "approve those Status changes (asks for your Approval)" },
   { reply: "dismiss <n>", does: "drop a proposal and don't raise that message again" },
+  {
+    reply: "assign <message-id> <application-id>",
+    does: "place unmatched mail on one Application",
+  },
+  { reply: "dismiss-mail <message-id>", does: "drop unmatched mail and never raise it again" },
   { reply: "help", does: "list these replies" },
 ];
 
@@ -529,20 +913,66 @@ export async function trackDigest(dataDir: string) {
   const items = pending.map((p) => {
     const app = apps.get(p.application_id);
     const name = app ? `${app.company} · ${app.title}` : p.application_id;
+    const preselected = p.confidence === "sure";
     lines.push(
-      `  ${p.n}) ${name}: ${statusLabel(p.from)} → ${statusLabel(p.to)}  [${p.confidence}]`,
+      `  ${p.n}) ${name}: ${statusLabel(p.from)} → ${statusLabel(p.to)}  [${p.confidence}]${
+        preselected ? " pre-selected" : ""
+      }`,
     );
-    lines.push(`       ${p.reason}${p.message ? ` Matched by ${p.message.matched_by}.` : ""}`);
-    return { ...p, application: name };
+    const calendar = p.message?.source === "calendar" ? " (Calendar event)" : "";
+    lines.push(
+      `       ${p.reason}${p.message ? ` Matched by ${p.message.matched_by}${calendar}.` : ""}`,
+    );
+    if (p.confidence === "probable" && p.note) lines.push(`       Why probable: ${p.note}.`);
+    return { ...p, application: name, preselected };
   });
   const unmatched = sync?.unmatched ?? [];
+  const unmatchedItems = unmatched.map((u) => {
+    const ranking = u.ranking ?? u.candidates.map((id) => ({ application_id: id, reason: "" }));
+    return {
+      message_id: u.message.message_id,
+      source: u.message.source ?? "email",
+      from: u.message.from,
+      subject: u.message.subject,
+      received_at: u.message.received_at,
+      classification: u.message.classification,
+      ats_mail: isVendorSender(u.message.from),
+      candidates: ranking.map((c) => {
+        const app = apps.get(c.application_id);
+        return {
+          application_id: c.application_id,
+          application: app ? `${app.company} · ${app.title}` : c.application_id,
+          reason: c.reason,
+        };
+      }),
+    };
+  });
   if (unmatched.length > 0) {
     lines.push(`UNMATCHED (${unmatched.length})  job mail no Application claims yet`);
+    for (const u of unmatchedItems) {
+      const kind = u.source === "calendar" ? "Calendar event" : "mail";
+      lines.push(
+        `  - ${u.message_id}: ${kind} from ${u.from}: "${u.subject}"${u.ats_mail ? " (ATS mail)" : ""}`,
+      );
+      u.candidates.forEach((c, i) => {
+        lines.push(`       ${i + 1}. ${c.application}${c.reason ? `: ${c.reason}` : ""}`);
+      });
+      lines.push(
+        u.candidates.length > 1
+          ? `       Several fit, pick one: track assign ${u.message_id} <application-id>, or track dismiss-mail ${u.message_id}`
+          : `       track assign ${u.message_id} <application-id>, or track dismiss-mail ${u.message_id}`,
+      );
+    }
   }
+  const sure = pending.filter((p) => p.confidence === "sure").map((p) => p.n);
+  const suggested = sure.length > 0 ? `approve ${sure.join(", ")}` : null;
+  if (suggested) lines.push(`Pre-selected: ${suggested}`);
   lines.push(`Reply: ${REPLIES.map((r) => r.reply).join(" · ")}`);
   return {
     proposals: items,
     unmatched: unmatched.length,
+    unmatched_items: unmatchedItems,
+    suggested_reply: suggested,
     text: lines.join("\n"),
     replies: REPLIES,
   };
@@ -618,14 +1048,12 @@ export async function approveStatus(dataDir: string, args: string[]) {
       },
       ...(proposal.message ? { message: proposal.message } : {}),
     };
-    const threads = (app.gmail_threads as string[] | undefined) ?? [];
-    const threadId = proposal.message?.thread_id;
-    const updated = await w.put("application", appId, {
+    const moved = await w.put("application", appId, {
       ...app,
       status: to,
       event_log: [...((app.event_log as EventLogEntry[]) ?? []), entry],
-      gmail_threads: threadId && !threads.includes(threadId) ? [...threads, threadId] : threads,
     });
+    const updated = proposal.message ? await learnFrom(w, dataDir, moved, proposal.message) : moved;
     await w.put("sync", CONNECTOR, {
       ...fields,
       proposals: fields.proposals.map((p) =>
