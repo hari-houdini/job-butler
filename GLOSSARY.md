@@ -36,6 +36,10 @@ _Avoid_: Job, lead, opportunity
 An Application the job seeker made outside Job Butler, found in their mail and tracked at their request. It has no Listing and none of Screen, Tailor or Apply: only a Status and its Event log.
 _Avoid_: Manual application, outside application, untracked application
 
+**Application limit**:
+A company's rule on how many Applications one person may make within a time window, either across the whole company (a cap) or for the same role (a reapply cooldown). It warns and reorders the Shortlist but never blocks a pick.
+_Avoid_: Quota, application cap, cooldown
+
 **Target company**:
 A company whose job board Discover searches, kept on a list in the Profile. Unlike the company allow list, it decides where Discover looks, not which Listings Screen keeps.
 _Avoid_: Watchlist, allow list, tracked company
