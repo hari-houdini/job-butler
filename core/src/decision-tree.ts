@@ -67,6 +67,9 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
   out.push(
     `  L["<b>${esc(String(listing.company))}</b><br/>${esc(String(listing.title))}${location}"]:::src`,
   );
+  overrideNodes(listing).forEach((node, i) => {
+    out.push(`  o${i + 1}${node}:::human`, `  L -.- o${i + 1}`);
+  });
 
   let prev = "L";
   let dashed = false;
@@ -116,6 +119,35 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
   return finish(out);
 }
 
+interface Override {
+  kind: string;
+  at?: string;
+  alias?: string;
+  from?: string;
+  into?: string;
+}
+
+/**
+ * One node label per override on the Listing (`listing.overrides`, the job seeker's own
+ * decisions). Split (#37): `into` on the Listing split from, `from` on the one split off.
+ * #39 (restore) and #42 (limit override) add their kinds here.
+ */
+function overrideNodes(listing: StoredRecord): string[] {
+  const overrides = Array.isArray(listing.overrides) ? (listing.overrides as Override[]) : [];
+  return overrides.map((o) => {
+    let what = `${o.kind}`;
+    if (o.kind === "split" && o.into)
+      what = `Split off ${o.into}: a different job, never merged again`;
+    else if (o.kind === "split" && o.from) {
+      what = `Split from ${o.from}: a different job, never merged again`;
+    }
+    return (
+      `["<b>Override: ${esc(o.kind)}</b><br/>${esc(what)}<br/>` +
+      `<i>Your decision${o.at ? ` · ${esc(o.at)}` : ""}</i>"]`
+    );
+  });
+}
+
 function finish(lines: string[]): string {
   return `${[...lines, ...CLASS_DEFS.map((d) => `  ${d}`)].join("\n")}\n`;
 }
@@ -130,7 +162,7 @@ export async function writeTrees(
   listings: StoredRecord[],
   applications: StoredRecord[],
 ): Promise<void> {
-  const byListing = new Map(applications.map((a) => [a.listing_id, a]));
+  const byListing = new Map(applications.map((a) => [a.listing, a]));
   await mkdir(join(dataDir, TREE_DIR), { recursive: true, mode: 0o700 });
   for (const listing of listings) {
     if (listing.screen === undefined || listing.screen === null) continue;

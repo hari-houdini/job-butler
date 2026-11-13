@@ -129,7 +129,7 @@ export async function pickListings(
       };
       const app = await w.put("application", randomUUID(), {
         origin: "picked",
-        listing_id: listing.id,
+        listing: listing.id,
         company: listing.company,
         title: listing.title,
         status: "picked",
@@ -152,6 +152,6 @@ export async function pickListings(
 export async function applicationsByListing(dataDir: string): Promise<Map<string, StoredRecord>> {
   const apps = await listRecords(dataDir, "application");
   return new Map(
-    apps.filter((a) => typeof a.listing_id === "string").map((a) => [a.listing_id as string, a]),
+    apps.filter((a) => typeof a.listing === "string").map((a) => [a.listing as string, a]),
   );
 }

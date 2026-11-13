@@ -344,8 +344,8 @@ export async function why(dataDir: string, target: string | undefined) {
     listing = await getRecord(dataDir, "listing", target);
     if (listing === undefined) {
       const app = await getRecord(dataDir, "application", target);
-      if (typeof app?.listing_id === "string") {
-        listing = await getRecord(dataDir, "listing", app.listing_id);
+      if (typeof app?.listing === "string") {
+        listing = await getRecord(dataDir, "listing", app.listing);
       }
     }
   }

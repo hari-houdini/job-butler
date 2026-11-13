@@ -12,7 +12,7 @@ import {
 import { detectBoard } from "./boards/detect.ts";
 import type { Command } from "./cli.ts";
 import { ensureSafeDataDir } from "./data-dir.ts";
-import { discoverBoards } from "./discover.ts";
+import { confirmSameJob, discoverBoards, splitMerged } from "./discover.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
@@ -285,6 +285,32 @@ export const commands: Record<string, Command> = {
       "Shortlist-pick Checkpoint: create one Picked Application per Listing. Runs only under " +
       "an Approval recorded with `approval record shortlist-pick` for this exact command.",
     run: async ({ dataDir, args }) => ({ ...(await pickListings(dataDir, args)) }),
+  },
+
+  "discover confirm": {
+    usage: 'discover confirm <discover_run_id> --input {"judgments": [...]}',
+    summary:
+      'Apply the discover-worker\'s "same job?" verdicts from `discover boards`: merge the ' +
+      "confirmed pairs (reported in the digest) and mark the rest as similar roles.",
+    async run(ctx) {
+      const [runId] = ctx.args;
+      if (runId === undefined) throw usageError("discover confirm: <discover_run_id> is required");
+      return { ...(await confirmSameJob(ctx.dataDir, runId, await ctx.readInput())) };
+    },
+  },
+
+  "listing split": {
+    usage: "listing split <listing_id> <alias_id>",
+    summary:
+      "The job seeker's override of a wrong merge: move one alias and its Sightings to their " +
+      "own Listing. The two are never merged again.",
+    async run({ args, dataDir }) {
+      const [listing, alias] = args;
+      if (listing === undefined || alias === undefined) {
+        throw usageError("listing split: <listing_id> and <alias_id> are required");
+      }
+      return { ...(await splitMerged(dataDir, listing, alias)) };
+    },
   },
 
   // Approval (docs/agents/core-conventions.md, "Approval").

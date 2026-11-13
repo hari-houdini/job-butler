@@ -355,7 +355,7 @@ async function approveAndRun(dataDir: string, action: string) {
 interface Application {
   id: string;
   origin: string;
-  listing_id: string;
+  listing: string;
   status: string;
   event_log: Record<string, unknown>[];
   decision_tree: string;
@@ -373,7 +373,7 @@ test("pick a, b records the Approval and creates one Picked Application per List
   const apps = (await runCli(["record", "list", "application"], { dataDir })).json
     .records as Application[];
   assert.equal(apps.length, 2);
-  const first = apps.find((a) => a.listing_id === "greenhouse:acme:101");
+  const first = apps.find((a) => a.listing === "greenhouse:acme:101");
   assert.match(
     first?.id ?? "",
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -520,6 +520,32 @@ test("after the pick the tree carries on through the Event log", async (t) => {
   );
   assert.ok(lines.includes("  SL --> e1"));
   assert.ok(lines.includes('  e1 --> ST(["Status: Picked"]):::out'));
+});
+
+test("a split override gets its own node in the tree", async (t) => {
+  const dataDir = tempDir(t);
+  const merged = listing("greenhouse:acme:101", "Senior Backend Engineer", "London");
+  merged.aliases.push({
+    id: "greenhouse:acme:999",
+    url: "https://job-boards.greenhouse.io/acme/jobs/999",
+  });
+  await setUp(dataDir, [merged]);
+  const split = await runCli(["listing", "split", "greenhouse:acme:101", "greenhouse:acme:999"], {
+    dataDir,
+  });
+  assert.equal(split.code, 0, split.stdout);
+
+  await screen(dataDir, rating("greenhouse:acme:101"));
+
+  const lines = tree(dataDir, "greenhouse:acme:101").split("\n");
+  assert.ok(
+    lines.includes(
+      '  o1["<b>Override: split</b><br/>Split off greenhouse:acme:999: a different job, never ' +
+        'merged again<br/><i>Your decision · 2026-01-15T09:00:00.000Z</i>"]:::human',
+    ),
+    lines.join("\n"),
+  );
+  assert.ok(lines.includes("  L -.- o1"));
 });
 
 test("a Listing gone from its board shows so in its tree at the next Screen", async (t) => {
