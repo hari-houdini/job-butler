@@ -1,0 +1,10 @@
+{
+  "judgments": [
+    {
+      "listing": "greenhouse:greenhouse-uk:9100002",
+      "other": "greenhouse:greenhouse:8279752",
+      "same_job": false,
+      "reason": "The UK board's advert is for a separate team's opening, so these are two jobs."
+    }
+  ]
+}
