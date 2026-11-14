@@ -48,6 +48,14 @@ test("the required Node version is the same everywhere it is written down", () =
     )?.[1],
     "hooks/hooks.json (Approval hook error)":
       read("hooks/hooks.json").match(/Check that Node (\d+)/)?.[1],
+    // No single source can feed these: a workflow file can't import TypeScript, and the guard
+    // must run on Node 22 with no imports beyond node:fs, so each names the major in its text.
+    "core/src/node-guard.ts (REQUIRED_MAJOR)": read("core/src/node-guard.ts").match(
+      /const REQUIRED_MAJOR = (\d+);/,
+    )?.[1],
+    ".github/workflows/check.yml (setup-node)": read(".github/workflows/check.yml").match(
+      /node-version: "(\d+)"/,
+    )?.[1],
   };
   for (const [place, major] of Object.entries(written)) {
     assert.equal(major, "26", `${place} names Node ${major}, not Node 26`);

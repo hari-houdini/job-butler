@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { type TestContext, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import type { BrowserType } from "playwright-core";
 
 const here = import.meta.dirname;
 export const CLI = resolve(here, "../src/cli.ts");
@@ -41,17 +42,18 @@ function inCi(): boolean {
 }
 
 export type RealBrowser =
-  | { available: true; playwright: string }
+  | { available: true; playwright: string; chromium: BrowserType }
   | { available: false; reason: string };
 
 /**
  * Whether a real-browser test may run: playwright-core (JOB_BUTLER_PLAYWRIGHT, else the
- * installed package) must load, and the Chromium it launches must exist on disk.
- * `playwright` is the entry file the CLI should load.
+ * installed package) must load, and the Chromium it launches must exist on disk. Resolves the
+ * package once: `chromium` is the loaded module's launcher, for in-process tests, and
+ * `playwright` is the entry file, for a CLI child process that loads it itself.
  */
 export async function realBrowser(): Promise<RealBrowser> {
   const override = hostVar("JOB_BUTLER_PLAYWRIGHT") || undefined;
-  let mod: { chromium?: { executablePath(): string }; default?: { chromium?: unknown } };
+  let mod: { chromium?: BrowserType; default?: { chromium?: BrowserType } };
   try {
     mod = await import(override ? pathToFileURL(override).href : "playwright-core");
   } catch {
@@ -62,18 +64,16 @@ export async function realBrowser(): Promise<RealBrowser> {
         : "playwright-core isn't installed",
     };
   }
-  const chromium = (mod.chromium ?? mod.default?.chromium) as
-    | { executablePath(): string }
-    | undefined;
+  const chromium = mod.chromium ?? mod.default?.chromium;
   const exe = chromium?.executablePath();
-  if (exe === undefined || !existsSync(exe)) {
+  if (chromium === undefined || exe === undefined || !existsSync(exe)) {
     return {
       available: false,
       reason: `Chromium isn't installed (expected at ${exe ?? "unknown"}); run npx playwright-core install chromium`,
     };
   }
   const playwright = override ?? fileURLToPath(import.meta.resolve("playwright-core"));
-  return { available: true, playwright };
+  return { available: true, playwright, chromium };
 }
 
 /**
