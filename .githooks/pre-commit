@@ -1,0 +1,7 @@
+#!/bin/sh
+# Fast gate before every commit, including merge commits. Installed by `npm install` (prepare).
+# The full suite (tests included) still runs with `npm run check`.
+set -e
+npm run -s typecheck
+npm run -s lint
+npm run -s check:markers

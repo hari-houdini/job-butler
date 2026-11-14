@@ -26,9 +26,24 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "style": {
+        "noProcessEnv": "error"
+      }
     }
   },
+  "overrides": [
+    {
+      "includes": ["core/src/env.ts", "core/test/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double"

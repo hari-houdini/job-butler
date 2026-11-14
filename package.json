@@ -9,11 +9,13 @@
   },
   "scripts": {
     "cli": "node core/src/cli.ts",
-    "test": "node --test \"core/test/**/*.test.ts\"",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "test": "node --test --test-reporter=dot \"core/test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check .",
+    "lint": "biome check --error-on-warnings .",
+    "check:markers": "! git grep -nE '^(<<<<<<<|>>>>>>>)' -- . ':!*.jsonl'",
     "format": "biome check --write .",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm run check:markers && npm test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
