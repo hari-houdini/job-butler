@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { RECORD_TYPES } from "../src/store.ts";
 import { runCli, tempDir } from "./harness.ts";
 
 test("an unknown command is refused with a usage error, not reported as success", async (t) => {
@@ -82,4 +83,59 @@ test("help with no command still lists every command", async (t) => {
   const names = (r.json.commands as { name: string }[]).map((c) => c.name);
   assert.ok(names.includes("employer calibrate"));
   assert.ok(names.includes("record put"));
+});
+
+// A bad or missing positional is refused with the same USAGE code and message as before the
+// usage lines were generated from the registry's declarations (#67, D3). A sample across the
+// shapes: a required positional, an id after a validated type, a pair, a stage, a flag and input.
+const badPositionals: [string[], string][] = [
+  [["fetch"], "fetch: <url> is required"],
+  [["record", "get", "listing"], "record get: <id> is required"],
+  [
+    ["record", "put"],
+    `Unknown record type "undefined". Expected one of: ${RECORD_TYPES.join(", ")}`,
+  ],
+  [["employer", "confirm"], "<id> is required"],
+  [
+    ["preferences", "set", "schedule.enabled"],
+    "preferences set: <setting> and <value> are required",
+  ],
+  [["listing", "split", "one"], "listing split: <listing_id> and <alias_id> are required"],
+  [
+    ["run", "start", "nope"],
+    "run start: <stage> must be one of: pipeline, discover, screen, tailor, apply, track",
+  ],
+  [["run", "end"], "run end: --run <run_id> is required"],
+  [["discover", "confirm"], "discover confirm: <discover_run_id> is required"],
+  [["resume", "import"], "resume import: <file> is required"],
+];
+
+for (const [args, message] of badPositionals) {
+  test(`"${args.join(" ")}" with a bad positional is refused as before: ${message}`, async (t) => {
+    const r = await runCli(args, { dataDir: tempDir(t) });
+    assert.equal(r.code, 2, r.stdout);
+    assert.equal(r.json.ok, false);
+    assert.equal(r.json.error?.code, "USAGE");
+    assert.equal(r.json.error?.message, message);
+  });
+}
+
+test("a file input missing on the command line is refused with the usage line in the message", async (t) => {
+  const dataDir = tempDir(t);
+  const r = await runCli(["employer", "calibrate"], { dataDir });
+  assert.equal(r.code, 2, r.stdout);
+  assert.equal(
+    r.json.error?.message,
+    'employer calibrate --input <file>|- ({"pairs": [{"a", "b", "same"}]}): --input <file> or --input - is required',
+  );
+});
+
+test("an inline input missing on the command line is refused with the usage line in the message", async (t) => {
+  const dataDir = tempDir(t);
+  const r = await runCli(["track", "record"], { dataDir });
+  assert.equal(r.code, 2, r.stdout);
+  assert.equal(
+    r.json.error?.message,
+    'track record --input {"messages": [...]}: --input <file> or --input - is required',
+  );
 });

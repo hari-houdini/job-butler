@@ -23,7 +23,7 @@ core/test/        *.test.ts, harness.ts, view-fixture.ts (records for the view t
 
 ## CLI
 
-- Commands are words, longest match wins (`help` lists them all): e.g. `status`, `record put|get|list`, `run start|end|status`, `profile put|get|check`, `preferences init|get|set`. Add a command by adding an entry to `core/src/commands.ts` that calls a module in `core/src/`. Name multi-word commands `<noun> <verb>` (e.g. `listing upsert`, `lock status`).
+- Commands are words, longest match wins (`help` lists them all): e.g. `status`, `record put|get|list`, `run start|end|status`, `profile put|get|check`, `preferences init|get|set`. Add a command by adding an entry to `core/src/commands.ts` that calls a module in `core/src/`. Declare its positionals, flags and input in the entry's `declaration` (`core/src/usage.ts` generates the usage line from it; the summary is hand-written). Name multi-word commands `<noun> <verb>` (e.g. `listing upsert`, `lock status`).
 - **Output:** exactly one JSON object on stdout, nothing else. Use snake_case keys. (Exception: `hook ...` commands set `raw: true` and print Claude Code's hook JSON instead. Claude Code reads hook JSON only on exit 0, so the startup guard on the hook path (`hook pre-tool-use`: a `permissionDecision: deny`; `hook session-start`: a `systemMessage`) exits 0. Exit 1 there would be a non-blocking error and the tool would run.)
   - success: `{"ok": true, ...}`, exit 0
   - refusal: `{"ok": false, "error": {"code": "LOCKED", "message": "..."}}`, exit 1. Throw `CoreError(code, message, details?)`; codes are SCREAMING_SNAKE. `message` is for the job seeker: what happened and what to do. Skills relay it as written.
