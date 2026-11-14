@@ -1,0 +1,21 @@
+{
+  "note": "Synthetic labelled pairs for the calibration tests only. Not the job seeker's hand-labelled sample: that comes from running `employer calibrate` on their own labels.",
+  "pairs": [
+    { "a": "Acme Analytics Ltd", "b": "ACME ANALYTICS LIMITED", "same": true },
+    { "a": "Brightwave Consulting", "b": "Brightwave Consultancy", "same": true },
+    { "a": "Northgate Software Solutions", "b": "Northgate Software Solution", "same": true },
+    { "a": "Helix Health Partners", "b": "Helix Health Partner", "same": true },
+    { "a": "Lumen Robotics", "b": "Lumen Robotix", "same": true },
+    { "a": "Quantia Capital Management", "b": "Quantia Capital Mgmt", "same": true },
+    { "a": "Vertex Data Systems", "b": "Vertex Data Systems UK", "same": true },
+    { "a": "Crescent Biotech", "b": "Crescent Bio-tech", "same": true },
+    { "a": "Brightwave Consulting", "b": "Brightwater Consulting", "same": false },
+    { "a": "Northgate Software", "b": "Northgate Property Services", "same": false },
+    { "a": "Helix Health Partners", "b": "Helix Energy", "same": false },
+    { "a": "Lumen Robotics", "b": "Lumen Learning", "same": false },
+    { "a": "Apex Logistics", "b": "Apex Legal Services", "same": false },
+    { "a": "Orbit Media", "b": "Orbit Mining", "same": false },
+    { "a": "Vertex Data Systems", "b": "Vertex Dental Systems", "same": false },
+    { "a": "Quantia Capital", "b": "Quantum Capital", "same": false }
+  ]
+}

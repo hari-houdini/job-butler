@@ -26,6 +26,7 @@ import {
   sponsorRefresh,
   sponsorStatus,
 } from "./employer.ts";
+import { calibrateFuzzy } from "./employer-calibration.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { createExternal, linkExternal } from "./external-create.ts";
@@ -362,6 +363,13 @@ export const commands: Record<string, Command> = {
     run: async (ctx) => ({
       ...(await correctEmployer(ctx.dataDir, needId(ctx.args), await ctx.readInput())),
     }),
+  },
+
+  "employer calibrate": {
+    usage: 'employer calibrate --input <file>|- ({"pairs": [{"a", "b", "same"}]})',
+    summary:
+      "Report precision, recall and F1 of the register's fuzzy threshold over a hand-labelled sample of name pairs. Writes nothing.",
+    run: async (ctx) => ({ ...calibrateFuzzy(await ctx.readInput()) }),
   },
 
   "employer end-client": {

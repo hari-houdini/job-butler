@@ -35,8 +35,8 @@ import {
 
 /**
  * Minimum trigram similarity (Dice, 0 to 1) for a fuzzy candidate. OPEN CALIBRATION ITEM: this is
- * a placeholder chosen by hand; it has not been calibrated on a hand-labelled sample of real
- * Listings (see docs/agents/core-conventions.md).
+ * a placeholder chosen by hand. Measure it with `employer calibrate` over a hand-labelled sample of
+ * real name pairs (core/src/employer-calibration.ts), then set it from that report.
  */
 export const FUZZY_THRESHOLD = 0.85;
 /** The model chooses among at most this many fuzzy candidates. */
