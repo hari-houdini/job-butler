@@ -78,6 +78,8 @@ export async function closeBrowser(info: BrowserInfo): Promise<void> {
 }
 
 const q = (name: string) => name.replace(/["\\]/g, "\\$&");
+// The label of a radio choice, evaluated in the page.
+const choice = (el: Any) => el.labels?.[0]?.textContent?.trim() ?? el.value;
 const selector = (name: string) => `[name="${q(name)}"], [id="${q(name)}"]`;
 
 async function launch(): Promise<{ info: BrowserInfo; browser: Any }> {
@@ -138,6 +140,7 @@ const KINDS: Record<string, ControlKind> = {
   search: "text",
   file: "file",
   checkbox: "checkbox",
+  radio: "radio",
   submit: "submit",
   image: "submit",
 };
@@ -165,33 +168,53 @@ export async function playwrightDriver(): Promise<PageDriver> {
     async controls() {
       const raw: Any[] = await wrap(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll("input, textarea, select, button")].flatMap((el: Any) => {
-            const type = String(
-              el.getAttribute("type") ?? (el.tagName === "BUTTON" ? "submit" : "text"),
-            ).toLowerCase();
-            if (type === "hidden") return [];
-            const label =
-              el.labels?.[0]?.textContent?.trim() ??
-              el.getAttribute("aria-label") ??
-              el.textContent?.trim() ??
-              "";
-            const submits =
-              el.form !== null &&
-              (type === "submit" || type === "image") &&
-              el.tagName !== "SELECT";
-            return [
-              {
-                name: el.name || el.id || "",
-                tag: el.tagName,
-                type,
-                label: label || el.name || el.id,
-                required: el.required === true,
-                submits,
-                options:
-                  el.tagName === "SELECT" ? [...el.options].map((o: Any) => o.label) : undefined,
-              },
-            ];
-          }),
+          [...document.querySelectorAll("input, textarea, select, button")].flatMap(
+            (el: Any, _i: number, all: Any[]) => {
+              const type = String(
+                el.getAttribute("type") ?? (el.tagName === "BUTTON" ? "submit" : "text"),
+              ).toLowerCase();
+              if (type === "hidden") return [];
+              const choiceLabel = (r: Any) => r.labels?.[0]?.textContent?.trim() ?? r.value;
+              if (type === "radio") {
+                // One control per radio group: its options are the choices' labels.
+                const group = all.filter((r: Any) => r.type === "radio" && r.name === el.name);
+                if (group[0] !== el) return [];
+                const legend = el.closest("fieldset")?.querySelector("legend")?.textContent?.trim();
+                return [
+                  {
+                    name: el.name,
+                    tag: "INPUT",
+                    type,
+                    label: legend || el.name,
+                    required: group.some((r: Any) => r.required),
+                    submits: false,
+                    options: group.map(choiceLabel),
+                  },
+                ];
+              }
+              const label =
+                el.labels?.[0]?.textContent?.trim() ??
+                el.getAttribute("aria-label") ??
+                el.textContent?.trim() ??
+                "";
+              const submits =
+                el.form !== null &&
+                (type === "submit" || type === "image") &&
+                el.tagName !== "SELECT";
+              return [
+                {
+                  name: el.name || el.id || "",
+                  tag: el.tagName,
+                  type,
+                  label: label || el.name || el.id,
+                  required: el.required === true,
+                  submits,
+                  options:
+                    el.tagName === "SELECT" ? [...el.options].map((o: Any) => o.label) : undefined,
+                },
+              ];
+            },
+          ),
         ),
       );
       return raw
@@ -215,6 +238,14 @@ export async function playwrightDriver(): Promise<PageDriver> {
     async set(control, value) {
       const loc = page.locator(selector(control.name)).first();
       await wrap(async () => {
+        if (control.kind === "radio") {
+          const radios = page.locator(`input[type="radio"][name="${q(control.name)}"]`);
+          for (let i = 0; i < (await radios.count()); i++) {
+            const r = radios.nth(i);
+            if ((await r.evaluate(choice)) === value) return r.check({ timeout: 5000 });
+          }
+          throw new Error(`no choice "${value}" on ${control.name}`);
+        }
         if (control.kind === "select") await loc.selectOption({ label: value }, { timeout: 5000 });
         else if (control.kind === "file") await loc.setInputFiles(value, { timeout: 5000 });
         else if (control.kind === "checkbox") await loc.check({ timeout: 5000 });
@@ -224,6 +255,14 @@ export async function playwrightDriver(): Promise<PageDriver> {
     async read(control) {
       const loc = page.locator(selector(control.name)).first();
       return wrap(async () => {
+        if (control.kind === "radio") {
+          const radios = page.locator(`input[type="radio"][name="${q(control.name)}"]`);
+          for (let i = 0; i < (await radios.count()); i++) {
+            const r = radios.nth(i);
+            if (await r.isChecked()) return String(await r.evaluate(choice));
+          }
+          return "";
+        }
         if (control.kind === "select") {
           return String(await loc.evaluate((el: Any) => el.selectedOptions[0]?.label ?? ""));
         }

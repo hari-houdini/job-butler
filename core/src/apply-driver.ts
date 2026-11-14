@@ -6,7 +6,15 @@ import { basename } from "node:path";
 import { browserDriver, fakePageFile } from "./env.ts";
 import { CoreError } from "./errors.ts";
 
-export type ControlKind = "text" | "textarea" | "select" | "file" | "checkbox" | "submit" | "other";
+export type ControlKind =
+  | "text"
+  | "textarea"
+  | "select"
+  | "file"
+  | "checkbox"
+  | "radio"
+  | "submit"
+  | "other";
 
 export interface PageControl {
   name: string;

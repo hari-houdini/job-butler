@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Acme - Senior Backend Engineer</title></head>
+<body>
+<!-- Lever hosted apply page (https://jobs.lever.co/acme/<posting-id>/apply), written from the
+     structure Lever documents and serves: stable field names plus cards[<uuid>][field<n>]. -->
+<div class="application-page">
+  <form method="POST" action="https://jobs.lever.co/acme/5f0a1c2e-aaaa-4bbb-8ccc-000000000001/apply" id="application-form">
+    <input type="hidden" name="origin" value="">
+    <input type="hidden" name="referer" value="">
+    <div class="section application-form">
+      <ul>
+        <li class="application-question resume">
+          <label>
+            <div class="application-label">Resume/CV<span class="required">&#10033;</span></div>
+            <div class="application-field"><input type="file" name="resume" id="resume-upload-input" required></div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Full name<span class="required">&#10033;</span></div>
+            <div class="application-field"><input type="text" name="name" required></div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Email<span class="required">&#10033;</span></div>
+            <div class="application-field"><input type="email" name="email" required></div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Phone</div>
+            <div class="application-field"><input type="text" name="phone"></div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Current company</div>
+            <div class="application-field"><input type="text" name="org"></div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">LinkedIn URL</div>
+            <div class="application-field"><input type="text" name="urls[LinkedIn]"></div>
+          </label>
+        </li>
+      </ul>
+    </div>
+    <div class="section custom-questions">
+      <ul>
+        <li class="application-question custom-question">
+          <input type="hidden" name="cards[11111111-2222-4333-8444-555555555555][baseTemplate]" value="{}">
+          <label>
+            <div class="application-label">Are you legally authorised to work in the UK?<span class="required">&#10033;</span></div>
+            <div class="application-field">
+              <ul data-qa="multiple-choice">
+                <li><label><input type="radio" name="cards[11111111-2222-4333-8444-555555555555][field0]" value="Yes" required><span class="application-answer-alternative">Yes</span></label></li>
+                <li><label><input type="radio" name="cards[11111111-2222-4333-8444-555555555555][field0]" value="No"><span class="application-answer-alternative">No</span></label></li>
+              </ul>
+            </div>
+          </label>
+        </li>
+        <li class="application-question custom-question">
+          <label>
+            <div class="application-label">Why Acme?<span class="required">&#10033;</span></div>
+            <div class="application-field"><textarea name="cards[11111111-2222-4333-8444-555555555555][field1]" required></textarea></div>
+          </label>
+        </li>
+        <li class="application-question custom-question">
+          <label>
+            <div class="application-label">What is your expected salary in GBP?<span class="required">&#10033;</span></div>
+            <div class="application-field"><input type="text" name="cards[11111111-2222-4333-8444-555555555555][field2]" required></div>
+          </label>
+        </li>
+        <li class="application-question custom-question">
+          <label>
+            <div class="application-label">Notice period</div>
+            <div class="application-field">
+              <select name="cards[11111111-2222-4333-8444-555555555555][field3]">
+                <option value="">Select...</option>
+                <option value="Immediately">Immediately</option>
+                <option value="1 month">1 month</option>
+                <option value="3 months">3 months</option>
+              </select>
+            </div>
+          </label>
+        </li>
+      </ul>
+    </div>
+    <input type="hidden" name="h-captcha-response" value="">
+    <button type="submit" id="btn-submit" class="postings-btn template-btn-submit">Submit application</button>
+  </form>
+</div>
+</body>
+</html>

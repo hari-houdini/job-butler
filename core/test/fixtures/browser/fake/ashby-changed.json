@@ -1,0 +1,57 @@
+{
+  "controls": [
+    {
+      "name": "_systemfield_name",
+      "kind": "text",
+      "label": "Name *",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "_systemfield_email",
+      "kind": "text",
+      "label": "Email *",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "_systemfield_resume",
+      "kind": "file",
+      "label": "Resume *",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "a1b2c3d4-0002-4000-8000-000000000002",
+      "kind": "select",
+      "label": "Are you legally authorised to work in the UK?",
+      "required": true,
+      "submits": false,
+      "options": [
+        "Yes",
+        "No"
+      ]
+    },
+    {
+      "name": "a1b2c3d4-0003-4000-8000-000000000003",
+      "kind": "textarea",
+      "label": "Why do you want to work at Acme? *",
+      "required": false,
+      "submits": false
+    },
+    {
+      "name": "a1b2c3d4-0004-4000-8000-000000000004",
+      "kind": "text",
+      "label": "What is your expected salary in GBP?",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "submit",
+      "kind": "submit",
+      "label": "Submit Application",
+      "required": false,
+      "submits": true
+    }
+  ]
+}

@@ -22,7 +22,7 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
 1. Run `run start apply`. On a refusal, relay it and stop: there is no run to end. Keep `run_id` and `joined`.
 2. Run `apply prepare`, adding the Application IDs the job seeker named.
    - Each `by_hand` entry: give the `link` and say the job is on LinkedIn only, so they apply by hand.
-   - Each `paused` entry: relay its `reason` (the posting is gone).
+   - Each `paused` entry: relay its `reason` (the posting is gone, on Greenhouse, Lever or Ashby).
    - Empty `applications`: say nothing is waiting to be filled and go to step 8.
 3. For each Application in `applications`, dispatch one `apply-worker` with that object as JSON in its prompt and nothing else. Write the reply, exactly as returned, with the Write tool to that object's `judgments_file`, then run `apply plan <application_id> --input <judgments_file>`. On `JUDGMENT_INVALID`, dispatch the worker once more with the same JSON plus the error message; after a second refusal, relay the message and move on.
 4. When `apply plan` returns `outcome: "paused"`, ask the job seeker each `unmappable` question in turn, with its `label` and `options`. Run `apply answer <application_id> <name> --input -` with `{"answer": "<their words>"}` for each. Tell them an answer stays on this Application only; to keep it for every form, they promote it to the Answer bank through `/job-butler:setup answer_bank`. When no field remains unmapped the Application is Ready to apply. If they decline to answer, leave it Paused and move on.
