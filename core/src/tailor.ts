@@ -5,6 +5,7 @@
 // Rules and shapes: docs/agents/core-conventions.md, "Tailor".
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { BATCH_SIZE } from "./batch.ts";
 import { type Block, type DocumentModel, renderDocument } from "./document.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
@@ -19,8 +20,6 @@ import {
 } from "./store.ts";
 import { isObject, type Problems } from "./validate.ts";
 
-/** How many workers Tailor and Apply keep in flight at once, one per Application. */
-export const BATCH_SIZE = 3;
 export const MAX_SUMMARY_WORDS = 60;
 export const MAX_FILE_BYTES = 2.5 * 1024 * 1024;
 

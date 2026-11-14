@@ -250,6 +250,21 @@ test("with a key, a brand name is looked up for its legal name and matched to th
   assert.equal(plain.employer.status, "unmatched");
 });
 
+test("a cached fuzzy Employer is re-checked after a Companies House key is added, without a register download", async (t) => {
+  const dataDir = tempDir(t);
+  const before = await match(dataDir, { company: "Orbital Dynamic Ltd", town: "Cambridge" });
+  assert.equal(before.employer.status, "unmatched");
+  await setKey(dataDir);
+  // Same register copy, same day: no download happens, but the key changes the answer.
+  const after = await match(dataDir, { company: "Orbital Dynamic Ltd", town: "Cambridge" });
+  assert.equal(after.refreshed, false);
+  assert.equal(after.cached, false);
+  assert.equal(after.employer.status, "matched");
+  assert.equal(after.employer.match_tier, "fuzzy");
+  assert.equal(after.employer.company_number, "02345678");
+  assert.equal(after.employer.verified_by_companies_house, true);
+});
+
 // --- agencies ----------------------------------------------------------------------------
 
 test("agencies are detected by name, 'our client' wording and SIC 78xxx and get a badge", async (t) => {

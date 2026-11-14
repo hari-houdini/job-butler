@@ -65,7 +65,7 @@ Each turn:
 1. Run `schedule tick`. `action: "off"` or `"idle"`: stop, say nothing. `"skipped"`: stop and relay `log`; the turn is retried on the next tick. `"run"`: keep `run_id` and `tasks`.
 2. For `track` run the Track skill, and for `discover-screen` the Discover then Screen skills, each stopping at its Checkpoint: never record an Approval, pick, Tailor, Apply or change a Status. Leave the replies for the job seeker.
 3. Run `run end --run <run_id>`, also on an error.
-4. Run `run notify`. Only when `notify` is true, send a desktop notification with its `title` and `message` (macOS: `osascript -e 'display notification "<message>" with title "<title>"'`; elsewhere `notify-send`). When false, stay silent.
+4. Run `run notify`. Only when `notify` is true, and only on macOS, send a desktop notification with its `title` and `message`: `osascript -e 'display notification "<message>" with title "<title>"'`. Elsewhere, or when false, stay silent.
 
 ### Preferences
 

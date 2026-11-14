@@ -165,3 +165,21 @@ export async function serveBrowserFixtures(
   if (addr === null || typeof addr === "string") throw new Error("server has no port");
   return `http://127.0.0.1:${addr.port}`;
 }
+
+/** Run `fn` with process.env set to `vars` (undefined removes a name), then restore it. In-process tests only. */
+export async function withProcessEnv(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<void>,
+): Promise<void> {
+  const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+  const set = (k: string, v: string | undefined) => {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  };
+  try {
+    for (const [k, v] of Object.entries(vars)) set(k, v);
+    await fn();
+  } finally {
+    for (const [k, v] of Object.entries(saved)) set(k, v);
+  }
+}

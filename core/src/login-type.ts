@@ -27,8 +27,10 @@ export interface LoginReport {
 
 const KEYCHAIN_SERVICE = "Claude Code-credentials";
 
-function isSet(value: string | undefined): boolean {
-  return value !== undefined && value !== "0" && value.toLowerCase() !== "false";
+/** Injectable probes, so tests never touch the real keychain or platform. */
+export interface LoginProbes {
+  keychain?: () => Promise<boolean>;
+  platform?: NodeJS.Platform;
 }
 
 /** True when the credentials file exists and holds a claudeAiOauth object. Only the key is checked. */
@@ -57,12 +59,14 @@ function hasKeychainItem(): Promise<boolean> {
 }
 
 /** Detect the login type. Never throws: an unexpected failure reports "unknown". */
-export async function detectLoginType(): Promise<LoginReport> {
+export async function detectLoginType(probes: LoginProbes = {}): Promise<LoginReport> {
+  const keychain = probes.keychain ?? hasKeychainItem;
+  const platform = probes.platform ?? process.platform;
   try {
-    if (isSet(claudeCodeVar("CLAUDE_CODE_USE_BEDROCK"))) {
+    if (claudeCodeVar("CLAUDE_CODE_USE_BEDROCK") !== undefined) {
       return { type: "bedrock", method: "CLAUDE_CODE_USE_BEDROCK is set" };
     }
-    if (isSet(claudeCodeVar("CLAUDE_CODE_USE_VERTEX"))) {
+    if (claudeCodeVar("CLAUDE_CODE_USE_VERTEX") !== undefined) {
       return { type: "vertex", method: "CLAUDE_CODE_USE_VERTEX is set" };
     }
     if (claudeCodeVar("ANTHROPIC_API_KEY")) {
@@ -77,7 +81,7 @@ export async function detectLoginType(): Promise<LoginReport> {
     if (await hasCredentialsFile(configDir)) {
       return { type: "claude.ai", method: "claudeAiOauth credentials file" };
     }
-    if (override === undefined && process.platform === "darwin" && (await hasKeychainItem())) {
+    if (override === undefined && platform === "darwin" && (await keychain())) {
       return { type: "claude.ai", method: `macOS keychain item "${KEYCHAIN_SERVICE}"` };
     }
     return { type: "unknown", method: "no login signal found" };

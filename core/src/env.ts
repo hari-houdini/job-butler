@@ -84,7 +84,20 @@ export function claudeEnvFile(): string | undefined {
   return process.env.CLAUDE_ENV_FILE || undefined;
 }
 
-/** Claude Code's own login variables, read only by the login-type check (#60). Undefined when unset or empty. */
+/**
+ * The one rule for "set": a value is set when it is non-empty and is not `0` or `false` (any case).
+ * Undefined when the value is not set.
+ */
+export function setValue(value: string | undefined): string | undefined {
+  return value === undefined || value === "" || value === "0" || value.toLowerCase() === "false"
+    ? undefined
+    : value;
+}
+
+/**
+ * Claude Code's own login variables, read only by the login-type check (#60). Undefined when not
+ * set, by the rule in setValue.
+ */
 export function claudeCodeVar(
   name:
     | "ANTHROPIC_API_KEY"
@@ -93,5 +106,5 @@ export function claudeCodeVar(
     | "CLAUDE_CODE_USE_VERTEX"
     | "CLAUDE_CONFIG_DIR",
 ): string | undefined {
-  return process.env[name] || undefined;
+  return setValue(process.env[name]);
 }
