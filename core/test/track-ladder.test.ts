@@ -338,6 +338,72 @@ test("learning also records the domain on the Employer, and skips vendor and fre
 });
 
 // ---------------------------------------------------------------------------------------
+// Reply-To: step 3 tries the sender's domain, then the Reply-To domain (decision #27)
+
+test("step 3: a Reply-To domain learned for an Application matches when the sender's domain does not", async (t) => {
+  const dataDir = tempDir(t);
+  await seed(dataDir, [{ ...ACME, mail_domains: ["acme.example"] }, BETA1]);
+  const r = await record(dataDir, [
+    msg({
+      from: "Talent Team <no-reply@bamboo.example>",
+      reply_to: "Acme Talent <talent@acme.example>",
+    }),
+  ]);
+  const [p] = r.proposals as Rec[];
+  assert.equal(p?.application_id, "a1");
+  assert.equal(p?.confidence, "sure");
+  assert.match(p?.message.matched_by, /mail domain \(step 3\)/);
+});
+
+test("step 3: when the sender's and Reply-To domains learned for different Applications disagree, the sender's wins", async (t) => {
+  const dataDir = tempDir(t);
+  await seed(dataDir, [
+    { ...ACME, mail_domains: ["acme.example"] },
+    { ...BETA1, mail_domains: ["beta.example"] },
+  ]);
+  const r = await record(dataDir, [msg({ from: "hr@acme.example", reply_to: "hr@beta.example" })]);
+  const [p] = r.proposals as Rec[];
+  assert.equal(p?.application_id, "a1");
+});
+
+test("an approved match learns the Reply-To domain as well as the sender's, on the Application and its Employer", async (t) => {
+  const dataDir = tempDir(t);
+  await put(dataDir, "employer", "emp-beta", { name: "Beta Labs" });
+  await seed(dataDir, [{ ...BETA1, employer: "emp-beta" }]);
+  await record(dataDir, [
+    msg({
+      message_id: "m1",
+      thread_id: "t1",
+      from: "Beta Hiring <no-reply@bamboo.example>",
+      reply_to: "Beta Labs <jobs@beta.example>",
+      company: "Beta Labs",
+      classification: "rejection",
+    }),
+  ]);
+  const ok = await approveAndRun(dataDir, "application status b1 rejected 1");
+  assert.equal(ok.code, 0, ok.stdout);
+  assert.deepEqual((await getRec(dataDir, "application", "b1")).mail_domains, [
+    "bamboo.example",
+    "beta.example",
+  ]);
+  assert.deepEqual((await getRec(dataDir, "employer", "emp-beta")).mail_domains, [
+    "bamboo.example",
+    "beta.example",
+  ]);
+});
+
+test("a Reply-To that is not text refuses the whole record", async (t) => {
+  const dataDir = tempDir(t);
+  await seed(dataDir, [ACME]);
+  const r = await runCli(["track", "record", "--input", "-"], {
+    dataDir,
+    input: { messages: [msg({ reply_to: 5 })] },
+  });
+  assert.notEqual(r.code, 0);
+  assert.equal(r.json.error?.code, "CLASSIFICATION_INVALID");
+});
+
+// ---------------------------------------------------------------------------------------
 // Calendar events
 
 test("a Calendar event uses the same ladder with the organizer as sender and counts as an interview invite", async (t) => {
