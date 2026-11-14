@@ -19,7 +19,7 @@ import {
 } from "./store.ts";
 import { isObject, type Problems } from "./validate.ts";
 
-/** How many Applications the skill tailors in parallel, one worker each. */
+/** How many workers Tailor and Apply keep in flight at once, one per Application. */
 export const BATCH_SIZE = 3;
 export const MAX_SUMMARY_WORDS = 60;
 export const MAX_FILE_BYTES = 2.5 * 1024 * 1024;

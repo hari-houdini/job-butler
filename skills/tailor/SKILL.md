@@ -21,7 +21,7 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
 
 1. Run `run start tailor`. On a refusal, relay it and stop: there is no run to end. Keep `run_id` and `joined`.
 2. Run `tailor pending`, adding the Application IDs the job seeker named. Empty `applications`: say nothing is waiting to be tailored and go to step 6.
-3. Tailor in waves of `batch_size` Applications (3). For each wave:
+3. Tailor in waves of `batch_size` Applications, at most three `tailor-worker`s in flight at once (`batch_size` is 3). Start the next wave only once every reply in the current one is recorded. For each wave:
    1. Dispatch one `tailor-worker` per Application, all in one message, each with that Application's object from `applications` as JSON in its prompt and nothing else.
    2. Write each reply, exactly as returned, with the Write tool to that object's `judgments_file`.
    3. Run `tailor record <application_id> --input <judgments_file>`. On `JUDGMENT_INVALID`, dispatch that worker once more with the same JSON plus the error message, then write and record again; after a second refusal, relay the message and move on.

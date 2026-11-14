@@ -276,6 +276,23 @@ test("a scheduled turn skips when another session holds the lock, and logs it", 
   other.kill();
 });
 
+test("Tailor and Apply dispatch at most three workers in flight", async (t) => {
+  const dataDir = tempDir(t);
+  await setUp(dataDir);
+  const tailor = await runCli(["tailor", "pending"], { dataDir });
+  const apply = await runCli(["apply", "prepare"], { dataDir });
+  assert.equal(tailor.code, 0, tailor.stdout);
+  assert.equal(apply.code, 0, apply.stdout);
+  assert.equal(tailor.json.batch_size, 3);
+  assert.equal(apply.json.batch_size, 3);
+
+  for (const skill of ["tailor", "apply"]) {
+    const text = readFileSync(join(ROOT, "skills", skill, "SKILL.md"), "utf8");
+    assert.match(text, /at most three[^\n.]*in flight/, `skills/${skill}/SKILL.md has no bound`);
+    assert.match(text, /in waves of `batch_size`/, `skills/${skill}/SKILL.md has no waves`);
+  }
+});
+
 test("every subagent names a model and an effort", () => {
   const files = readdirSync(join(ROOT, "agents")).filter((f) => f.endsWith(".md"));
   assert.ok(files.length >= 6);

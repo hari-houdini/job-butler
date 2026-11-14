@@ -24,6 +24,7 @@ import {
   type StoreWriter,
   withWriter,
 } from "./store.ts";
+import { BATCH_SIZE } from "./tailor.ts";
 import { isObject } from "./validate.ts";
 
 type Any = Record<string, unknown>;
@@ -264,7 +265,7 @@ export async function applyPrepare(dataDir: string, ids: string[]) {
       }
     });
   }
-  return { applications, by_hand: byHand, paused };
+  return { batch_size: BATCH_SIZE, applications, by_hand: byHand, paused };
 }
 
 // ---------------------------------------------------------------------------------------
