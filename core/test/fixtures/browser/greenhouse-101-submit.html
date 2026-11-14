@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head><title>Senior Backend Engineer at Acme</title></head>
+  <body>
+    <!-- Local copy of a Greenhouse application form (job 101); field names match the recorded ?questions=true schema. -->
+    <form id="application_form" action="/submit-must-never-be-called" method="post">
+      <label for="first_name">First Name</label>
+      <input id="first_name" name="first_name" type="text" required />
+      <label for="last_name">Last Name</label>
+      <input id="last_name" name="last_name" type="text" required />
+      <label for="email">Email</label>
+      <input id="email" name="email" type="text" required />
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="submit" value="Send" />
+      <label for="resume">Resume/CV</label>
+      <input id="resume" name="resume" type="file" required />
+      <label for="question_1001">LinkedIn Profile</label>
+      <input id="question_1001" name="question_1001" type="text" />
+      <label for="question_1002">Are you legally authorised to work in the UK?</label>
+      <select id="question_1002" name="question_1002" required>
+        <option value="">--</option><option value="1">Yes</option><option value="0">No</option>
+      </select>
+      <label for="question_1003">How did you initially hear about this job?</label>
+      <input id="question_1003" name="question_1003" type="text" required />
+      <button type="submit">Submit application</button>
+    </form>
+  </body>
+</html>

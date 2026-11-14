@@ -1,0 +1,71 @@
+{
+  "controls": [
+    {
+      "name": "first_name",
+      "kind": "text",
+      "label": "First Name",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "last_name",
+      "kind": "text",
+      "label": "Last Name",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "email",
+      "kind": "text",
+      "label": "Email",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "phone",
+      "kind": "text",
+      "label": "Phone",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "resume",
+      "kind": "file",
+      "label": "Resume/CV",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "question_1001",
+      "kind": "text",
+      "label": "LinkedIn Profile",
+      "required": false,
+      "submits": false
+    },
+    {
+      "name": "question_1002",
+      "kind": "select",
+      "label": "Are you legally authorised to work in the UK?",
+      "required": true,
+      "submits": false,
+      "options": [
+        "Yes",
+        "No"
+      ]
+    },
+    {
+      "name": "question_1003",
+      "kind": "text",
+      "label": "How did you initially hear about this job?",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "submit",
+      "kind": "submit",
+      "label": "Submit application",
+      "required": false,
+      "submits": true
+    }
+  ]
+}
