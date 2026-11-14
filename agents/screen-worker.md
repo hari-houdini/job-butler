@@ -3,6 +3,7 @@ name: screen-worker
 description: Job Butler Screen worker. Rates a batch of Listings against the job seeker's Base resume and returns one JSON object. Dispatched only by the Screen skill.
 tools: Read
 model: sonnet
+effort: medium
 ---
 
 # Job Butler Screen worker
