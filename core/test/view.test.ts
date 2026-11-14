@@ -216,6 +216,8 @@ test("hostile text in every field that reaches the decision tree stays text in t
   assert.doesNotMatch(html, /<img\b/i);
   // Shown as text: HTML-escaped where the page prints it, entity-coded inside the Mermaid source.
   assert.match(html, /&lt;img src=x onerror=&quot;window\.jbPwned=1&quot;&gt;/);
+  // The check's evidence is listed as text in the Listing's checks list.
+  assert.match(html, /<li>&lt;img src=x onerror=&quot;window\.jbPwned=1&quot;&gt;<\/li>/);
   // Each field that reaches the diagram carries the payload: company, title, location, the
   // check's name, rule, result and citation, and the event's reason.
   const sources = [...html.matchAll(/<script type="text\/x-mermaid">([\s\S]*?)<\/script>/g)].map(

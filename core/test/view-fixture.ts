@@ -191,14 +191,19 @@ export async function seed(dataDir: string) {
 /** Markup that must reach the page as text only: an image whose error handler sets a flag. */
 export const HOSTILE = '<img src=x onerror="window.jbPwned=1">';
 
-/** A Listing and its Application with HOSTILE in every field that reaches the decision tree. */
+/** A Listing and its Application with HOSTILE in every field that reaches the decision tree, and as a check's evidence. */
 const HOSTILE_LISTING = listing("301", HOSTILE, {
   company: HOSTILE,
   location: HOSTILE,
   screen: screen(
     "shortlist",
     [
-      check(HOSTILE, "pass", { rule: HOSTILE, result: HOSTILE, citation: HOSTILE }),
+      check(HOSTILE, "pass", {
+        rule: HOSTILE,
+        result: HOSTILE,
+        citation: HOSTILE,
+        evidence: [HOSTILE],
+      }),
       check("Fit score", "pass"),
     ],
     { fit: FIT(70, "partial") },
