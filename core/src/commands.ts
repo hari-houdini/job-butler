@@ -33,6 +33,7 @@ import { createExternal, linkExternal } from "./external-create.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
 import { addLinkedInJobs, confirmLinkedInMatch, matchLinkedIn } from "./linkedin.ts";
 import { endRun, readRunLock, startRun } from "./lock.ts";
+import { detectLoginType } from "./login-type.ts";
 import { httpGet } from "./net.ts";
 import { notifyVerdict, pipelineDigest, routeReply, scheduleTick } from "./orchestrate.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
@@ -75,7 +76,9 @@ export const commands: Record<string, Command> = {
     async run({ dataDir }) {
       const check = await checkProfile(dataDir);
       const run = await readRunLock(dataDir);
-      const base = { profile: check.state, run: run ?? null, data_dir: dataDir };
+      // Advisory (#60): never blocks; detectLoginType reports "unknown" rather than failing.
+      const login = await detectLoginType();
+      const base = { profile: check.state, run: run ?? null, data_dir: dataDir, login };
       if (check.state === "missing") {
         return {
           ...base,

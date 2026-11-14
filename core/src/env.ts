@@ -83,3 +83,15 @@ export function sessionPidOverride(): number | undefined {
 export function claudeEnvFile(): string | undefined {
   return process.env.CLAUDE_ENV_FILE || undefined;
 }
+
+/** Claude Code's own login variables, read only by the login-type check (#60). Undefined when unset or empty. */
+export function claudeCodeVar(
+  name:
+    | "ANTHROPIC_API_KEY"
+    | "CLAUDE_CODE_OAUTH_TOKEN"
+    | "CLAUDE_CODE_USE_BEDROCK"
+    | "CLAUDE_CODE_USE_VERTEX"
+    | "CLAUDE_CONFIG_DIR",
+): string | undefined {
+  return process.env[name] || undefined;
+}
