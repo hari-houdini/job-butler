@@ -493,6 +493,7 @@ async function recheckEmployers(dataDir: string, w: StoreWriter, s: Session): Pr
       ...matchFields(outcome, false),
       matched_at: timestamp(),
       register_as_of: s.as_of,
+      companies_house_key: s.ch !== undefined,
     };
     await w.put("employer", rec.id, withoutStored(next));
     if (label(rec) !== label(next))
@@ -580,12 +581,17 @@ export async function matchEmployer(
     const existing = await getRecord(dataDir, "employer", id);
     const endClient = input.end_client ?? agencyOf(existing)?.end_client ?? undefined;
 
+    // A pinned Employer is never re-matched (recheckEmployers skips it too). Otherwise the cache
+    // holds only while the register copy and the Companies House key state are the same as when
+    // the match was made: a new key can change a fuzzy answer without any register download.
+    const keyed = session.ch !== undefined;
     const reusable =
       existing !== undefined &&
       input.end_client === undefined &&
       input.judgment === undefined &&
       existing.status !== "needs_judgment" &&
-      (existing.pinned !== undefined || existing.register_as_of === session.as_of);
+      (Boolean(existing.pinned) ||
+        (existing.register_as_of === session.as_of && existing.companies_house_key === keyed));
     if (reusable) return present(session, existing, { cached: true, ...refresh });
 
     const known = agencyOf(existing)?.signals;
@@ -606,6 +612,7 @@ export async function matchEmployer(
       town: input.town ?? null,
       matched_at: timestamp(),
       register_as_of: session.as_of,
+      companies_house_key: session.ch !== undefined,
       pinned: null,
       agency,
       mail_domains: existing?.mail_domains ?? [],

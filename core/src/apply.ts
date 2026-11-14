@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { type EventLogEntry, STATUSES, type Status, statusLabel } from "./application.ts";
 import { ATS_NAME, formTarget, readForm } from "./apply-form.ts";
 import { approvalUsedFor, normaliseAction } from "./approval.ts";
+import { BATCH_SIZE } from "./batch.ts";
 import type { FormField, FormSchema } from "./boards/greenhouse-form.ts";
 import { writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
@@ -24,7 +25,6 @@ import {
   type StoreWriter,
   withWriter,
 } from "./store.ts";
-import { BATCH_SIZE } from "./tailor.ts";
 import { isObject } from "./validate.ts";
 
 type Any = Record<string, unknown>;

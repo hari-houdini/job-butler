@@ -304,11 +304,16 @@ interface AliasInfo {
   source_job_id: string | null;
 }
 
+/** What a step found: the Applications (empty when it has no signal) and, for step 3, the domain. */
+export interface LadderHit {
+  apps: StoredRecord[];
+  domain?: string;
+}
+
 export interface LadderStep {
   step: number;
   name: string;
-  /** The Applications this step finds for the message; empty when it has no signal. */
-  find(message: ClassifiedMessage, ctx: LadderContext): StoredRecord[];
+  find(message: ClassifiedMessage, ctx: LadderContext): LadderHit;
 }
 
 const lower = (s: string | undefined | null): string => (s ?? "").trim().toLowerCase();
@@ -322,9 +327,13 @@ const byThread: LadderStep = {
   name: "thread",
   find: (m, ctx) => {
     const key = m.source === "calendar" ? "calendar_events" : "gmail_threads";
-    return ctx.apps
-      .filter(({ app }) => Array.isArray(app[key]) && (app[key] as string[]).includes(m.thread_id))
-      .map((x) => x.app);
+    return {
+      apps: ctx.apps
+        .filter(
+          ({ app }) => Array.isArray(app[key]) && (app[key] as string[]).includes(m.thread_id),
+        )
+        .map((x) => x.app),
+    };
   },
 };
 
@@ -349,7 +358,7 @@ const byAtsId: LadderStep = {
   name: "ATS ID",
   find(m, ctx) {
     const ats = m.ats;
-    if (ats === undefined) return [];
+    if (ats === undefined) return { apps: [] };
     const urlId = atsPostingId(ats.job_url);
     const jobId = lower(ats.job_id);
     const slug = lower(ats.board_slug);
@@ -361,13 +370,13 @@ const byAtsId: LadderStep = {
         return jobId !== "" && ownId === jobId && (slug === "" || slugOf(a) === slug);
       }),
     );
-    if (exact.length > 0) return exact.map((x) => x.app);
+    if (exact.length > 0) return { apps: exact.map((x) => x.app) };
     const board = (pick: (a: AliasInfo) => string, want: string) =>
       want === ""
         ? []
         : ctx.apps.filter(({ aliases }) => aliases.some((a) => pick(a) === want)).map((x) => x.app);
     const bySlug = board(slugOf, slug);
-    return bySlug.length > 0 ? bySlug : board(tenantOf, lower(ats.workday_tenant));
+    return { apps: bySlug.length > 0 ? bySlug : board(tenantOf, lower(ats.workday_tenant)) };
   },
 };
 
@@ -410,7 +419,10 @@ function learnedMailMatch(
 const byMailDomain: LadderStep = {
   step: 3,
   name: "mail domain",
-  find: (m, ctx) => learnedMailMatch(m, ctx)?.apps ?? [],
+  find(m, ctx) {
+    const hit = learnedMailMatch(m, ctx);
+    return hit === undefined ? { apps: [] } : { apps: hit.apps, domain: hit.domain };
+  },
 };
 
 const LEGAL = new Set(["inc", "ltd", "limited", "llc", "plc", "corp", "corporation", "gmbh", "co"]);
@@ -451,9 +463,11 @@ const bySenderName: LadderStep = {
   name: "named sender",
   find(m, ctx) {
     const text = `${displayName(m.from)}\n${m.signature ?? ""}`;
-    return ctx.apps
-      .filter((e) => isOpen(e.app) && containsName(text, String(e.app.company)))
-      .map((e) => e.app);
+    return {
+      apps: ctx.apps
+        .filter((e) => isOpen(e.app) && containsName(text, String(e.app.company)))
+        .map((e) => e.app),
+    };
   },
 };
 
@@ -470,16 +484,16 @@ const byBody: LadderStep = {
   step: 5,
   name: "body",
   find(m, ctx) {
-    if (m.company === undefined || m.company.trim() === "") return [];
+    if (m.company === undefined || m.company.trim() === "") return { apps: [] };
     const company = ctx.apps.filter(
       (e) => isOpen(e.app) && containsName(m.company as string, String(e.app.company)),
     );
     const role = m.role?.trim();
     if (role) {
       const narrowed = company.filter((e) => roleMatches(String(e.app.title), role));
-      if (narrowed.length > 0) return narrowed.map((x) => x.app);
+      if (narrowed.length > 0) return { apps: narrowed.map((x) => x.app) };
     }
-    return company.map((x) => x.app);
+    return { apps: company.map((x) => x.app) };
   },
 };
 
@@ -495,6 +509,8 @@ export type Match =
       kind: "matched";
       app: StoredRecord;
       step: LadderStep;
+      /** Step 3 only: the learned domain the message matched by. */
+      domain?: string;
       confidence: "sure" | "probable";
       /** Why a probable match is only probable; absent for a sure one. */
       note?: string;
@@ -507,12 +523,12 @@ function stepReason(
   step: LadderStep,
   m: ClassifiedMessage,
   app: StoredRecord,
-  ctx: LadderContext,
+  domain: string | undefined,
 ): string {
   const company = String(app.company);
   switch (step.step) {
     case 3:
-      return `mail from ${learnedMailMatch(m, ctx)?.domain ?? senderDomain(m.from)}, a mail domain learned for ${company}`;
+      return `mail from ${domain ?? senderDomain(m.from)}, a mail domain learned for ${company}`;
     case 4:
       return `the sender or signature names ${company}`;
     case 5:
@@ -531,9 +547,13 @@ function openAtEmployer(app: StoredRecord, ctx: LadderContext): number {
 }
 
 export function matchMessage(message: ClassifiedMessage, ctx: LadderContext): Match {
-  const tally = new Map<string, { app: StoredRecord; steps: LadderStep[] }>();
+  const tally = new Map<
+    string,
+    { app: StoredRecord; hits: { step: LadderStep; domain?: string }[] }
+  >();
   for (const step of LADDER) {
-    const found = [...new Map(step.find(message, ctx).map((a) => [a.id, a])).values()];
+    const hit = step.find(message, ctx);
+    const found = [...new Map(hit.apps.map((a) => [a.id, a])).values()];
     if (found.length === 1) {
       const app = found[0] as StoredRecord;
       const sure = step.step <= 2 || (step.step === 3 && openAtEmployer(app, ctx) === 1);
@@ -541,34 +561,35 @@ export function matchMessage(message: ClassifiedMessage, ctx: LadderContext): Ma
         kind: "matched",
         app,
         step,
+        ...(hit.domain !== undefined ? { domain: hit.domain } : {}),
         confidence: sure ? "sure" : "probable",
         ...(sure
           ? {}
           : {
               note:
                 step.step === 3
-                  ? `${stepReason(step, message, app, ctx)}, but ${String(app.company)} has other open Applications`
-                  : stepReason(step, message, app, ctx),
+                  ? `${stepReason(step, message, app, hit.domain)}, but ${String(app.company)} has other open Applications`
+                  : stepReason(step, message, app, hit.domain),
             }),
       };
     }
     for (const app of found) {
-      const entry = tally.get(app.id) ?? { app, steps: [] };
-      entry.steps.push(step);
+      const entry = tally.get(app.id) ?? { app, hits: [] };
+      entry.hits.push({ step, domain: hit.domain });
       tally.set(app.id, entry);
     }
   }
   if (tally.size === 0) return { kind: "unmatched" };
   const role = message.role?.trim();
-  const score = (x: { app: StoredRecord; steps: LadderStep[] }) =>
-    x.steps.length +
+  const score = (x: { app: StoredRecord; hits: unknown[] }) =>
+    x.hits.length +
     (role && roleMatches(String(x.app.title), role) ? 0.5 : 0) +
     (isOpen(x.app) ? 0.1 : 0);
   const candidates = [...tally.values()]
     .sort((a, b) => score(b) - score(a) || String(a.app.id).localeCompare(String(b.app.id)))
     .map((x) => ({
       app: x.app,
-      reason: x.steps.map((s) => stepReason(s, message, x.app, ctx)).join("; "),
+      reason: x.hits.map((h) => stepReason(h.step, message, x.app, h.domain)).join("; "),
     }));
   return { kind: "ambiguous", candidates };
 }

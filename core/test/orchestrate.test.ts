@@ -293,6 +293,12 @@ test("Tailor and Apply dispatch at most three workers in flight", async (t) => {
   }
 });
 
+test("desktop notifications are macOS-only: the job-butler skill has no notify-send fallback", () => {
+  const text = readFileSync(join(ROOT, "skills", "job-butler", "SKILL.md"), "utf8");
+  assert.doesNotMatch(text, /notify-send/, "SKILL.md still has the Linux fallback");
+  assert.match(text, /only on macOS[^\n]*osascript -e 'display notification/);
+});
+
 test("every subagent names a model and an effort", () => {
   const files = readdirSync(join(ROOT, "agents")).filter((f) => f.endsWith(".md"));
   assert.ok(files.length >= 6);

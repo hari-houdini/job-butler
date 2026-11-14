@@ -50,6 +50,7 @@ Confirmed capabilities:
 Constraints:
 - **Human approves each send by default.** Agents draft and prepare. Nothing outward-facing (applications, emails, messages) goes out without explicit approval. Users can choose to grant more autonomy, but the safe default must hold.
 - The product reads private data (email, calendar, resume). Only the minimum needed is used, and personal details are never sent to services beyond what a task requires.
+- **v1 requires a claude.ai subscription login.** API-key, Bedrock and Vertex setups are not supported.
 
 First job sources:
 - LinkedIn
