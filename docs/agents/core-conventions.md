@@ -37,7 +37,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_OPENER`: the program `view` opens the page with (tests).
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
-  - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
+  - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook (`hook session-start`) exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
   - `CLAUDE_ENV_FILE` (set by Claude Code; read with `claudeEnvFile()`) and `JOB_BUTLER_SESSION_PID` (read with `sessionPidOverride()`): read in `env.ts` like the rest.
   - Tests read the host environment only through `hostEnv()` and `hostVar()` in `core/test/harness.ts`, the one test file the Biome `noProcessEnv` override allows.
 
@@ -57,7 +57,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
 ## Stage entry gate, Profile and Preferences
 
 - Every Stage entry point (the `/job-butler` orchestrator and each Stage skill) starts with `run start <stage>` (`pipeline`, `discover`, `screen`, `tailor`, `apply`, `track`) and ends with `run end`. `run start` refuses `PROFILE_INCOMPLETE` / `PROFILE_INVALID` (send the job seeker to `/job-butler:setup`), `PREFERENCES_MISSING` / `PREFERENCES_INVALID`, or `LOCKED`, in that order. On success it returns the validated `preferences`, so a Stage reads them from there and never applies defaults of its own.
-- Profile (`profile.ts`): human-editable YAML, written only through `profile put [--section <name>]` (setup). Sections: `identity`, `base_resume`, `targets`, `sponsorship`, `filters` (with `target_companies`), `autonomy`, `answer_bank`, plus `companies_house_key`. Validation refuses unknown keys, so a new field means adding it to the section's check. Completeness rules live in `missingFields`. Read it with `profile get [--section]`.
+- Profile (`profile.ts`): human-editable YAML, written only through `profile put [--section <name>]` (setup). Setup keeps the resume with `resume import <file>`, which returns its text (null for a PDF: the skill reads that with the Read tool). Sections: `identity`, `base_resume`, `targets`, `sponsorship`, `filters` (with `target_companies`), `autonomy`, `answer_bank`, plus `companies_house_key`. Validation refuses unknown keys, so a new field means adding it to the section's check. Completeness rules live in `missingFields`. Read it with `profile get [--section]`.
 - Preferences (`preferences.ts`): every setting written out by `preferences init`; changed by `preferences set <dotted.setting> <value>`. A missing, unknown or out-of-range setting is `PREFERENCES_INVALID`, never a default. Add a setting by adding it to `PREFERENCES_DEFAULTS`, `preferencesProblems` and (optionally) `COMMENTS`. Rewriting the file regenerates its comments; hand-written comments are not kept.
 - YAML (`yaml.ts`) is a small dependency-free subset: block mappings and sequences, comments, quoted and plain scalars, `[a, b]`, and `|` / `>` block text. Anything else refuses with its line number.
 
