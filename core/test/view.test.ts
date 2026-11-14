@@ -3,192 +3,7 @@ import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { test } from "node:test";
 import { runCli, tempDir } from "./harness.ts";
-
-/** A screened Listing in the shape Discover and Screen write (core-conventions.md). */
-function listing(jobId: string, title: string, extra: Record<string, unknown> = {}) {
-  const id = `greenhouse:acme:${jobId}`;
-  return {
-    id,
-    body: {
-      source: "greenhouse",
-      board: "greenhouse:acme",
-      company: "Acme",
-      source_job_id: jobId,
-      title,
-      location: "London",
-      url: `https://job-boards.greenhouse.io/acme/jobs/${jobId}`,
-      description: `${title} at Acme.`,
-      aliases: [{ id, url: `https://job-boards.greenhouse.io/acme/jobs/${jobId}` }],
-      sightings: [],
-      first_seen_at: "2026-01-14T07:00:00.000Z",
-      last_seen_at: "2026-01-14T07:00:00.000Z",
-      gone: false,
-      gone_at: null,
-      decision_tree: `decision-trees/${encodeURIComponent(id)}.mmd`,
-      ...extra,
-    },
-  };
-}
-
-function check(
-  name: string,
-  status: "pass" | "warn" | "fail" | "not_reached",
-  extra: Record<string, unknown> = {},
-) {
-  return {
-    check: `step.${name.toLowerCase().replace(/\W+/g, "_")}`,
-    name,
-    rule: `${name} rule`,
-    result: status === "not_reached" ? "not reached" : status,
-    status,
-    effect: null,
-    citation: `${name} citation`,
-    evidence: [`${name} evidence line`],
-    label: null,
-    ...extra,
-  };
-}
-
-function screen(outcome: "shortlist" | "excluded", checks: unknown[], extra = {}) {
-  return {
-    screened_at: "2026-01-14T08:00:00.000Z",
-    run_id: null,
-    outcome,
-    excluded_by: null,
-    checks,
-    flags: [],
-    badges: [],
-    rescore_requested_at: null,
-    ...extra,
-  };
-}
-
-const FIT = (score: number, band: string) => ({ score, band });
-
-const SHORT_A = listing("101", "Senior Backend Engineer", {
-  screen: screen("shortlist", [check("Scam gate", "pass"), check("Fit score", "pass")], {
-    fit: FIT(86, "strong"),
-  }),
-});
-const SHORT_B = listing("102", "Platform Engineer", {
-  screen: screen("shortlist", [check("Scam gate", "pass"), check("Ghost score", "warn")], {
-    fit: FIT(61, "partial"),
-    flags: [{ check: "step.ghost_score", label: "ghost: high" }],
-  }),
-});
-const EXCLUDED = listing("103", "Crypto Wizard", {
-  screen: screen(
-    "excluded",
-    [
-      check("Scam gate", "fail", { effect: "exclude", evidence: ["asks for a fee upfront"] }),
-      check("Fit score", "not_reached"),
-    ],
-    { excluded_by: "step.scam_gate" },
-  ),
-});
-const PAUSED = listing("104", "Backend Engineer II", {
-  application_id: "app-paused",
-  screen: screen("shortlist", [check("Scam gate", "pass")], { fit: FIT(77, "partial") }),
-});
-const HANDOVER = listing("105", "Staff Engineer", {
-  application_id: "app-handover",
-  screen: screen("shortlist", [check("Scam gate", "pass")], { fit: FIT(81, "strong") }),
-});
-
-function application(
-  id: string,
-  listingId: string | null,
-  title: string,
-  status: string,
-  extra: Record<string, unknown> = {},
-) {
-  return {
-    id,
-    body: {
-      origin: listingId === null ? "external" : "picked",
-      listing: listingId,
-      company: "Acme",
-      title,
-      status,
-      event_log: [
-        {
-          at: "2026-01-14T09:00:00.000Z",
-          stage: "screen",
-          from: null,
-          to: "picked",
-          reason: "Picked from the Shortlist (Fit 80 strong).",
-          approval: {
-            id: "ap-1",
-            checkpoint: "shortlist-pick",
-            approved_at: "2026-01-14T08:59:00.000Z",
-            action: `application pick ${listingId}`,
-          },
-        },
-      ],
-      gmail_threads: [],
-      answers: [],
-      ...extra,
-    },
-  };
-}
-
-const APPS = [
-  application("app-paused", PAUSED.id, "Backend Engineer II", "paused", {
-    pause: { field: "Right to work: visa expiry date" },
-  }),
-  application("app-handover", HANDOVER.id, "Staff Engineer", "handover"),
-  application("app-ext", null, "Data Engineer", "submitted"),
-  application("app-change", null, "Analyst", "submitted", {
-    pending_change: { to: "interview", reason: "Invite matched by thread" },
-  }),
-];
-
-const DISCOVER_RUN = {
-  id: "run-1",
-  body: {
-    started_at: "2026-01-15T08:00:00.000Z",
-    finished_at: "2026-01-15T08:02:00.000Z",
-    run_id: null,
-    sources: [
-      {
-        id: "greenhouse:acme",
-        ats: "greenhouse",
-        company: "Acme",
-        status: "ok",
-        jobs: 3,
-        error: null,
-      },
-      {
-        id: "workday:adatum:ext",
-        ats: "workday",
-        company: "Adatum",
-        status: "failed",
-        jobs: 0,
-        error: {
-          code: "BOARD_CHANGED_SHAPE",
-          message: "Adatum's board answered with an unexpected shape.",
-        },
-      },
-    ],
-    new_listings: [],
-    gone_listings: [],
-    listings_seen: 3,
-  },
-};
-
-async function put(dataDir: string, type: string, rec: { id: string; body: unknown }) {
-  const r = await runCli(["record", "put", type, rec.id, "--input", "-"], {
-    dataDir,
-    input: rec.body,
-  });
-  assert.equal(r.code, 0, r.stdout);
-}
-
-async function seed(dataDir: string) {
-  for (const l of [SHORT_A, SHORT_B, EXCLUDED, PAUSED, HANDOVER]) await put(dataDir, "listing", l);
-  for (const a of APPS) await put(dataDir, "application", a);
-  await put(dataDir, "discover-run", DISCOVER_RUN);
-}
+import { check, FIT, listing, put, screen, seed, seedHostile } from "./view-fixture.ts";
 
 /** Run `view` (without opening a browser) and return the page text. */
 async function page(dataDir: string): Promise<string> {
@@ -389,4 +204,32 @@ test("a view that cannot be written never fails the pipeline write", async (t) =
   assert.equal(r.code, 0, r.stdout);
   assert.equal(r.json.ok, true);
   assert.ok(!existsSync(join(dataDir, "pipeline.lock")));
+});
+
+test("hostile text in every field that reaches the decision tree stays text in the page", async (t) => {
+  const dataDir = tempDir(t);
+  await seedHostile(dataDir);
+
+  const html = await page(dataDir);
+
+  // No markup from the hostile text survives unescaped, in the page or in the tree source.
+  assert.doesNotMatch(html, /<img\b/i);
+  // Shown as text: HTML-escaped where the page prints it, entity-coded inside the Mermaid source.
+  assert.match(html, /&lt;img src=x onerror=&quot;window\.jbPwned=1&quot;&gt;/);
+  // Each field that reaches the diagram carries the payload: company, title, location, the
+  // check's name, rule, result and citation, and the event's reason.
+  const sources = [...html.matchAll(/<script type="text\/x-mermaid">([\s\S]*?)<\/script>/g)].map(
+    (m) => m[1] as string,
+  );
+  const tree = sources.find((s) => s.includes("#lt;img")) as string;
+  assert.ok(tree, "the hostile Listing has a decision tree");
+  assert.equal(tree.split("#lt;img src=x onerror=#quot;window.jbPwned=1#quot;#gt;").length - 1, 8);
+});
+
+test("the vendored Mermaid is the 12.x browser build, with its license beside it", async () => {
+  const vendor = join(import.meta.dirname, "..", "vendor", "mermaid");
+  const bundle = readFileSync(join(vendor, "mermaid.min.js"), "utf8");
+
+  assert.match(bundle, /\{version:"12\.\d+\.\d+"\}/);
+  assert.match(readFileSync(join(vendor, "LICENSE"), "utf8"), /MIT License/);
 });
