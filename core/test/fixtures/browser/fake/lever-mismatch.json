@@ -1,0 +1,93 @@
+{
+  "controls": [
+    {
+      "name": "resume",
+      "kind": "file",
+      "label": "Resume/CV",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "name",
+      "kind": "text",
+      "label": "Full name",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "email",
+      "kind": "text",
+      "label": "Email",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "phone",
+      "kind": "text",
+      "label": "Phone",
+      "required": false,
+      "submits": false
+    },
+    {
+      "name": "org",
+      "kind": "text",
+      "label": "Current company",
+      "required": false,
+      "submits": false
+    },
+    {
+      "name": "urls[LinkedIn]",
+      "kind": "text",
+      "label": "LinkedIn URL",
+      "required": false,
+      "submits": false
+    },
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field0]",
+      "kind": "radio",
+      "label": "Are you legally authorised to work in the UK?",
+      "required": true,
+      "submits": false,
+      "options": [
+        "Yes",
+        "No"
+      ]
+    },
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field1]",
+      "kind": "textarea",
+      "label": "Why Acme?",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field2]",
+      "kind": "text",
+      "label": "What is your expected salary in GBP?",
+      "required": true,
+      "submits": false
+    },
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field3]",
+      "kind": "select",
+      "label": "Notice period",
+      "required": false,
+      "submits": false,
+      "options": [
+        "Immediately",
+        "1 month",
+        "3 months"
+      ]
+    },
+    {
+      "name": "btn-submit",
+      "kind": "submit",
+      "label": "Submit application",
+      "required": false,
+      "submits": true
+    }
+  ],
+  "readback": {
+    "email": "ada@wrong.example"
+  }
+}

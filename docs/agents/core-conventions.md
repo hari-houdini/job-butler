@@ -434,6 +434,18 @@ Code: `core/src/sponsorship.ts` (the regime-neutral interface, the verdict combi
 
 **Tests** (`core/test/apply.test.ts`): the fill logic runs against the fake driver (`JOB_BUTLER_BROWSER=fake`, `JOB_BUTLER_FAKE_PAGE=<scenario>` from `fixtures/browser/fake/`: clean, mismatch, empty required, mid-fill error, page down, changed, submit control). Tests marked `real browser` drive Chromium against local copies of the form (`fixtures/browser/greenhouse-101*.html`, served by a recording server that proves nothing is posted); they skip when `playwright-core` can't be resolved (install it, or set `JOB_BUTLER_PLAYWRIGHT`).
 
+## Apply: Lever and Ashby forms (set by #46)
+
+Apply fills Lever and Ashby forms through the same Fill plan, fill, read-back, pause and Handover as Greenhouse (#45). `apply-form.ts` picks the first Listing alias on a fillable board (`greenhouse`, `lever`, `ashby`) and reads it into the shared form model; `plan.form.ats` records the board (a plan without it is Greenhouse). `plan.form.url` is the page that gets filled. LinkedIn-only Listings still go to `by_hand`.
+
+**Lever** (`boards/lever-form.ts`): `GET <alias url>/apply` through `httpGet` (EU alias URLs stay on `jobs.eu.lever.co`). Each `<li class="application-question">` is one question: the `application-label` text (the required marker removed) is the label, required comes from the marker or a `required` attribute (on a question's first control only). Names are Lever's own: `name`, `email`, `phone`, `org`, `urls[...]`, `comments`, `resume`, `eeo[...]` and the posting's `cards[<uuid>][field<n>]`. A radio group becomes one `select` field (options are the choices' labels), a checkbox group a `multi_select` (the real driver can't set it yet, so a fill of one is blocked by the read-back, never guessed). Hidden inputs, the captcha and the submit button are not fields. 404 is `POSTING_GONE` (pauses at `apply prepare`).
+
+**Ashby** (`boards/ashby-form.ts`): the hosted page is rendered in the browser and has no public form API, so `apply prepare` and `apply plan` open `<alias url>/application` with the page driver and map a snapshot of its controls: each control becomes a field named by the control's name or id, with its label (a trailing `*` is the required marker, removed from the label). Only text, textarea, select and file controls are fields. A page that won't open pauses with `POSTING_GONE`.
+
+**Driver seam:** the one `PageDriver` is extended, not duplicated: a `radio` control kind (one control per radio group, options are the choice labels; Playwright checks the choice whose label matches). A planned field with no matching control pauses as `PAGE_CHANGED`, a submitting control as `SUBMIT_REFUSED`, as before.
+
+**Tests** (`core/test/apply-lever-ashby.test.ts`, no real-browser case to keep the suite fast): Lever's form is `fixtures/network/lever-apply-form.html` (written from the documented Lever form structure, not recorded from a live page) and `lever-apply-missing.html` (404); Lever and Ashby fill scenarios are `fixtures/browser/fake/lever-*.json` and `ashby-*.json`; plans are `judgments/apply-plan-lever.json` and `apply-plan-ashby.json`. Ashby's form is read from the same fake page scenario that fills it.
+
 ## Orchestrator run and schedule (set by #52)
 
 Code: `core/src/orchestrate.ts`. Skill: `skills/job-butler/SKILL.md` (Pipeline, Digest, Scheduled runs).

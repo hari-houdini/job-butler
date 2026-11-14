@@ -1,0 +1,58 @@
+{
+  "fields": [
+    {
+      "name": "resume",
+      "value": "Ada-Example-Resume.docx",
+      "source": {
+        "kind": "tailor",
+        "ref": "resume"
+      }
+    },
+    {
+      "name": "name",
+      "value": "Ada Example",
+      "source": {
+        "kind": "identity",
+        "ref": "name"
+      }
+    },
+    {
+      "name": "email",
+      "value": "ada@example.com",
+      "source": {
+        "kind": "identity",
+        "ref": "email"
+      }
+    },
+    {
+      "name": "phone",
+      "value": "+44 7700 900123",
+      "source": {
+        "kind": "identity",
+        "ref": "phone"
+      }
+    },
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field0]",
+      "value": "No",
+      "source": {
+        "kind": "answer_bank",
+        "ref": 0
+      }
+    },
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field1]",
+      "value": "Acme's own careers page described the platform work I want to do.",
+      "source": {
+        "kind": "written",
+        "basis": "The advert came from Acme's own board."
+      }
+    }
+  ],
+  "unmappable": [
+    {
+      "name": "cards[11111111-2222-4333-8444-555555555555][field2]",
+      "reason": "No Answer bank entry covers an expected salary in GBP."
+    }
+  ]
+}

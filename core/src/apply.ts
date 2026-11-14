@@ -1,4 +1,4 @@
-// Apply (#45): fill a Greenhouse application form from a Fill plan, read every field back
+// Apply (#45, #46): fill a Greenhouse, Lever or Ashby application form from a Fill plan, read every field back
 // and hand over to the job seeker, who clicks Submit themselves. The core never clicks
 // Submit and records Submitted only under a Handover Approval.
 //   apply prepare   read each form, hand the worker its material; a missing posting pauses
@@ -9,8 +9,9 @@
 // Shapes and rules: docs/agents/core-conventions.md, "Apply: Greenhouse fill, read-back and Handover".
 import { join } from "node:path";
 import { type EventLogEntry, STATUSES, type Status, statusLabel } from "./application.ts";
+import { ATS_NAME, formTarget, readForm } from "./apply-form.ts";
 import { approvalUsedFor, normaliseAction } from "./approval.ts";
-import { type FormField, type FormSchema, readGreenhouseForm } from "./boards/greenhouse-form.ts";
+import type { FormField, FormSchema } from "./boards/greenhouse-form.ts";
 import { writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
@@ -53,7 +54,14 @@ export interface PlanField {
 export interface FillPlan {
   state: "planned" | "paused" | "filled" | "blocked";
   built_at: string;
-  form: { url: string; board_token: string; job_id: string; fetched_at: string };
+  form: {
+    /** The board; Fill plans from before #46 have none and are Greenhouse. */
+    ats?: "greenhouse" | "lever" | "ashby";
+    url: string;
+    board_token: string;
+    job_id: string;
+    fetched_at: string;
+  };
   fields: PlanField[];
   unmappable: (Pick<FormField, "name" | "label" | "type" | "required" | "options"> & {
     reason: string;
@@ -71,26 +79,6 @@ export interface Blocker {
 
 // ---------------------------------------------------------------------------------------
 // Where the form is
-
-interface Target {
-  token: string;
-  jobId: string;
-  url: string;
-}
-
-const sourceOf = (a: { id: string; source?: string }) => a.source ?? a.id.split(":")[0] ?? "";
-
-/** The employer-ATS (Greenhouse) copy of the Listing, or undefined when there is none. */
-function greenhouseTarget(listing: StoredRecord): Target | undefined {
-  const aliases = (listing.aliases as { id: string; url: string | null; source?: string }[]) ?? [];
-  const mine = aliases.find(
-    (a) => sourceOf(a) === "greenhouse" && typeof a.url === "string" && a.url !== "",
-  );
-  if (mine === undefined) return undefined;
-  const [, token, jobId] = mine.id.split(":");
-  if (token === undefined || jobId === undefined) return undefined;
-  return { token, jobId, url: mine.url as string };
-}
 
 function linkOf(listing: StoredRecord): string | null {
   const aliases = (listing.aliases as { url: string | null }[]) ?? [];
@@ -212,7 +200,7 @@ export async function applyPrepare(dataDir: string, ids: string[]) {
         ? await getRecord(dataDir, "listing", app.listing)
         : undefined;
     if (listing === undefined) throw notFound("listing", String(app.listing));
-    const target = greenhouseTarget(listing);
+    const target = formTarget(listing);
     if (target === undefined) {
       byHand.push({
         application_id: app.id,
@@ -226,13 +214,13 @@ export async function applyPrepare(dataDir: string, ids: string[]) {
     }
     let form: FormSchema;
     try {
-      form = await readGreenhouseForm(target.token, target.jobId, timestamp());
+      form = await readForm(target, timestamp());
     } catch (e) {
       if (e instanceof CoreError && e.code === "POSTING_GONE") {
         toPause.push({
           app,
           code: e.code,
-          reason: `The posting is no longer on Greenhouse, so Apply paused. Check the job is still open.`,
+          reason: `The posting is no longer on ${ATS_NAME[target.ats]}, so Apply paused. Check the job is still open.`,
         });
         continue;
       }
@@ -245,6 +233,7 @@ export async function applyPrepare(dataDir: string, ids: string[]) {
       title: app.title,
       form: {
         url: target.url,
+        ats: target.ats,
         board_token: target.token,
         job_id: target.jobId,
         fields: form.fields,
@@ -285,7 +274,10 @@ export async function loadForm(app: StoredRecord): Promise<FormSchema> {
   const plan = app.fill_plan as FillPlan | null;
   const target = plan?.form;
   if (target !== undefined) {
-    return readGreenhouseForm(target.board_token, target.job_id, timestamp());
+    return readForm(
+      { ats: target.ats, token: target.board_token, jobId: target.job_id, url: target.url },
+      timestamp(),
+    );
   }
   throw new CoreError("NO_FILL_PLAN", `${pausedMessage(app)} has no Fill plan yet.`);
 }
@@ -404,9 +396,9 @@ export async function applyPlan(dataDir: string, id: string | undefined, input: 
       );
     }
     const listing = (await getRecord(dataDir, "listing", String(app.listing))) as StoredRecord;
-    const target = greenhouseTarget(listing);
-    if (target === undefined) throw notFound("greenhouse posting for", id);
-    const form = await readGreenhouseForm(target.token, target.jobId, timestamp());
+    const target = formTarget(listing);
+    if (target === undefined) throw notFound("fillable posting for", id);
+    const form = await readForm(target, timestamp());
     const files = tailorFiles(app);
     const answers = (app.answers as { field: string; answer: string }[]) ?? [];
     const problems = planProblems(
@@ -457,6 +449,7 @@ export async function applyPlan(dataDir: string, id: string | undefined, input: 
       built_at: timestamp(),
       form: {
         url: target.url,
+        ats: target.ats,
         board_token: target.token,
         job_id: target.jobId,
         fetched_at: form.fetched_at,

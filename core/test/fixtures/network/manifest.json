@@ -228,5 +228,15 @@
     "status": 404,
     "content_type": "application/json",
     "file": "greenhouse-form-missing.json"
+  },
+  "https://jobs.lever.co/acme/5f0a1c2e-aaaa-4bbb-8ccc-000000000001/apply": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "file": "lever-apply-form.html"
+  },
+  "https://jobs.lever.co/acme/00000000-aaaa-4bbb-8ccc-000000000404/apply": {
+    "status": 404,
+    "content_type": "text/html; charset=utf-8",
+    "file": "lever-apply-missing.html"
   }
 }
