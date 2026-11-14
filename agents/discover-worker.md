@@ -3,6 +3,7 @@ name: discover-worker
 description: Judges Discover's matches for the Job Butler Discover skill. Dispatched with either the same_job JSON from `discover boards` ("same job?") or the linkedin_match JSON from `linkedin add` / `linkedin match` ("LinkedIn match"); returns one JSON object.
 tools: Read
 model: haiku
+effort: low
 ---
 
 # Discover worker
