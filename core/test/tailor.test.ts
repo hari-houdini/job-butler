@@ -52,7 +52,7 @@ async function setUp(dataDir: string, name = "Ada Example", extraApp: object = {
     sightings: [],
     gone: false,
     application_id: APP,
-    screen: { outcome: "shortlist" },
+    screen: { outcome: "shortlist", excluded_by: null, checks: [] },
   };
   const l = await runCli(["record", "put", "listing", LISTING, "--input", "-"], {
     dataDir,
@@ -294,6 +294,16 @@ test("recording moves the Application to Tailored once, and re-recording an edit
   const again = await runCli(["tailor", "pending", APP], { dataDir });
   assert.equal((again.json.applications as Any[]).length, 1);
   assert.match(JSON.stringify((again.json.applications as Any[])[0].previous), /through promotion/);
+});
+
+test("recording a Tailored resume redraws the Listing's Decision tree, so its Status node reads Tailored", async (t) => {
+  const dataDir = tempDir(t);
+  await setUp(dataDir);
+  const tree = join(dataDir, "decision-trees", `${encodeURIComponent(LISTING)}.mmd`);
+  assert.equal((await record(dataDir)).code, 0);
+  const text = readFileSync(tree, "utf8");
+  assert.match(text, /Status: Tailored/);
+  assert.doesNotMatch(text, /Status: Picked/);
 });
 
 async function refused(dataDir: string, mutate: (j: Any) => void, match: RegExp) {

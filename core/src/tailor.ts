@@ -6,6 +6,7 @@
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { BATCH_SIZE } from "./batch.ts";
+import { writeTrees } from "./decision-tree.ts";
 import { type Block, type DocumentModel, renderDocument } from "./document.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
@@ -618,7 +619,7 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
       });
       status = "tailored";
     }
-    await w.put("application", app.id, {
+    const saved = await w.put("application", app.id, {
       ...fields,
       status,
       event_log: eventLog,
@@ -632,6 +633,9 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
         gaps,
       },
     });
+    // The Decision tree draws the Application's Status, so redraw it with the new Status.
+    const listing = await getRecord(dataDir, "listing", String(app.listing));
+    if (listing !== undefined) await writeTrees(dataDir, [listing], [saved]);
   });
 
   return {
