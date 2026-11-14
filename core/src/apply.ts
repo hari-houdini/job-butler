@@ -8,15 +8,15 @@
 //   apply handover  show every field and file; Handover Status only when the read-back is clean
 // Shapes and rules: docs/agents/core-conventions.md, "Apply: Greenhouse fill, read-back and Handover".
 import { join } from "node:path";
-import { type EventLogEntry, STATUSES, type Status, statusLabel } from "./application.ts";
+import { STATUSES, type Status, statusLabel } from "./application.ts";
 import { ATS_NAME, formTarget, readForm } from "./apply-form.ts";
 import { approvalUsedFor, normaliseAction } from "./approval.ts";
 import { BATCH_SIZE } from "./batch.ts";
 import type { FormField, FormSchema } from "./boards/greenhouse-form.ts";
-import { writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { assertProfileComplete, type Profile, readProfile } from "./profile.ts";
+import { moveStatus, redrawTree } from "./status-move.ts";
 import {
   getRecord,
   listRecords,
@@ -88,13 +88,12 @@ function linkOf(listing: StoredRecord): string | null {
 }
 
 // ---------------------------------------------------------------------------------------
-// Event log
+// Saving
 
-function entry(from: Status, to: Status, reason: string): EventLogEntry {
-  return { at: timestamp(), stage: "apply", from, to, reason, approval: null };
-}
-
-/** Save the Application (and its Decision tree) with an optional Status change. */
+/**
+ * Save the Application (and its Decision tree) with an optional Status move. A move to the
+ * Status it already has is not a Status move: it saves the changes and adds no Event log entry.
+ */
 export async function saveApplication(
   dataDir: string,
   w: StoreWriter,
@@ -102,20 +101,18 @@ export async function saveApplication(
   changes: Record<string, unknown>,
   move?: { to: Status; reason: string },
 ): Promise<StoredRecord> {
-  const log = [...(app.event_log as EventLogEntry[])];
   if (move !== undefined && move.to !== app.status) {
-    log.push(entry(app.status as Status, move.to, move.reason));
+    return moveStatus(dataDir, w, app, {
+      stage: "apply",
+      to: move.to,
+      reason: move.reason,
+      approval: null,
+      changes,
+    });
   }
   const { id: _i, created_at: _c, updated_at: _u, schema_version: _s, ...fields } = app;
-  const saved = await w.put("application", app.id, {
-    ...fields,
-    ...changes,
-    status: move?.to ?? app.status,
-    event_log: log,
-  });
-  const listing =
-    typeof app.listing === "string" ? await getRecord(dataDir, "listing", app.listing) : undefined;
-  if (listing !== undefined) await writeTrees(dataDir, [listing], [saved]);
+  const saved = await w.put("application", app.id, { ...fields, ...changes });
+  await redrawTree(dataDir, saved);
   return saved;
 }
 
@@ -595,31 +592,19 @@ export async function applicationSubmitted(dataDir: string, args: string[]) {
       );
     }
     const at = timestamp();
-    const log = [
-      ...(app.event_log as EventLogEntry[]),
-      {
-        at,
-        stage: "apply",
-        from: "handover",
-        to: "submitted",
-        reason: "The job seeker confirmed they clicked Submit.",
-        approval: {
-          id: approval.id,
-          checkpoint: approval.checkpoint,
-          approved_at: approval.approved_at,
-          action,
-        },
-      } satisfies EventLogEntry,
-    ];
-    const { id: _i, created_at: _c, updated_at: _u, schema_version: _s, ...fields } = app;
-    const saved = await w.put("application", id, {
-      ...fields,
-      status: "submitted",
-      submitted_at: at,
-      event_log: log,
+    await moveStatus(dataDir, w, app, {
+      stage: "apply",
+      to: "submitted",
+      reason: "The job seeker confirmed they clicked Submit.",
+      approval: {
+        id: approval.id,
+        checkpoint: approval.checkpoint,
+        approved_at: approval.approved_at,
+        action,
+      },
+      at,
+      changes: { submitted_at: at },
     });
-    const listing = await getRecord(dataDir, "listing", String(app.listing));
-    if (listing !== undefined) await writeTrees(dataDir, [listing], [saved]);
     return { application_id: id, status: "submitted", submitted_at: at };
   });
 }
