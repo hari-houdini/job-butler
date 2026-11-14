@@ -33,9 +33,9 @@ export interface Fact {
   text: string;
 }
 
-type Item = Record<string, unknown>;
-const items = (v: unknown): Item[] => (Array.isArray(v) ? v.filter(isObject) : []);
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
+export type Item = Record<string, unknown>;
+export const items = (v: unknown): Item[] => (Array.isArray(v) ? v.filter(isObject) : []);
+export const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 const roleText = (e: Item) => `${str(e.title)}, ${str(e.employer)}`;
 const schoolText = (e: Item) => `${str(e.qualification)}, ${str(e.institution)}`;
@@ -79,7 +79,7 @@ interface Bullet {
   text: string;
   source: string;
 }
-interface Keyword {
+export interface Keyword {
   keyword: string;
   abbreviation: string | null;
   advert_quote: string;
@@ -104,12 +104,12 @@ function termPattern(term: string): RegExp {
   return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "i");
 }
 
-function words(text: string): number {
+export function words(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
 /** One piece of resume text in reading order, for the keyword rules. */
-interface Run {
+export interface Run {
   where: "summary" | "bullet" | "other";
   text: string;
   source?: string;
@@ -241,7 +241,7 @@ function check(
 const terms = (k: Keyword): string[] => [k.keyword, ...(k.abbreviation ? [k.abbreviation] : [])];
 const mentions = (run: Run, k: Keyword) => terms(k).some((t) => termPattern(t).test(run.text));
 
-function keywordProblems(keywords: Keyword[], runs: Run[]): Problems {
+export function keywordProblems(keywords: Keyword[], runs: Run[]): Problems {
   const problems: Problems = [];
   for (const k of keywords) {
     if (k.status === "gap") {
@@ -285,7 +285,7 @@ function keywordProblems(keywords: Keyword[], runs: Run[]): Problems {
 // ---------------------------------------------------------------------------------------
 // Rendering
 
-function contactLines(identity: Item): string[] {
+export function contactLines(identity: Item): string[] {
   const first = [str(identity.email), str(identity.phone), str(identity.location)].filter(Boolean);
   const links = items(identity.links).map((l) => `${str(l.label)}: ${str(l.url)}`);
   return [first.join(" | "), links.join(" | ")].filter(Boolean);
@@ -476,6 +476,13 @@ function notesMarkdown(args: {
   ].join("\n");
 }
 
+/** The cover letter's files (#47), which a resume re-record leaves alone. */
+function coverLetterFiles(app: StoredRecord): string[] {
+  const c = (app.tailor as { cover_letter?: { files?: Record<string, string> } } | null)
+    ?.cover_letter;
+  return c?.files ? Object.values(c.files) : [];
+}
+
 /** `tailor record <application-id> --input <file>`: check, render, write, mark Tailored. */
 export async function tailorRecord(dataDir: string, id: string | undefined, input: unknown) {
   if (id === undefined) throw usageError("tailor record: <application-id> is required");
@@ -534,7 +541,7 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
   ];
   const table = keywordTable(j.keywords, runs);
   const gaps = table.filter((k) => k.status === "gap").map((k) => k.keyword);
-  const previous = app.tailor as { revision?: number } | null;
+  const previous = app.tailor as { revision?: number; cover_letter?: unknown } | null;
   const revision = (previous?.revision ?? 0) + 1;
   const at = timestamp();
   const folder = folderOf(app.id);
@@ -568,7 +575,8 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
     ];
     for (const [name, content] of files) await writeThenReplace(join(dir, name), content);
     for (const stale of await readdir(dir)) {
-      if (!files.some(([name]) => name === stale))
+      const kept = coverLetterFiles(app);
+      if (!files.some(([name]) => name === stale) && !kept.includes(stale))
         await rm(join(dir, stale), { recursive: true, force: true });
     }
     const { schema_version: _v, id: _i, created_at: _c, updated_at: _u, ...fields } = app;
@@ -590,6 +598,7 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
       status,
       event_log: eventLog,
       tailor: {
+        ...(previous?.cover_letter ? { cover_letter: previous.cover_letter } : {}),
         folder,
         files: { ...names, notes: "notes.md", notes_json: "notes.json" },
         revision,

@@ -15,12 +15,12 @@ You run Tailor: one `tailor-worker` per Picked Application selects, reorders and
 node "${CLAUDE_SKILL_DIR}/../../core/src/cli.ts" <command> [args]
 ```
 
-It prints one JSON object. On `"ok": false`, tell the job seeker `error.message` as written and go to step 5.
+It prints one JSON object. On `"ok": false`, tell the job seeker `error.message` as written and go to step 6.
 
 ## Steps
 
 1. Run `run start tailor`. On a refusal, relay it and stop: there is no run to end. Keep `run_id` and `joined`.
-2. Run `tailor pending`, adding the Application IDs the job seeker named. Empty `applications`: say nothing is waiting to be tailored and go to step 5.
+2. Run `tailor pending`, adding the Application IDs the job seeker named. Empty `applications`: say nothing is waiting to be tailored and go to step 6.
 3. Tailor in waves of `batch_size` Applications (3). For each wave:
    1. Dispatch one `tailor-worker` per Application, all in one message, each with that Application's object from `applications` as JSON in its prompt and nothing else.
    2. Write each reply, exactly as returned, with the Write tool to that object's `judgments_file`.
@@ -30,7 +30,8 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
    - `text` (the keyword table: used or gap) in a code block, then the `gaps`.
    - `changes`, one per line.
    - The `paths` for the DOCX (the upload), the PDF and the notes folder.
-5. Run `run end --run <run_id>`, unless `joined` was true. Run it whenever the run stops after step 1, including on an error.
+5. Cover letters, as below.
+6. Run `run end --run <run_id>`, unless `joined` was true. Run it whenever the run stops after step 1, including on an error.
 
 ## Edits
 
@@ -41,3 +42,11 @@ The job seeker asks in plain words ("lead with the payments work", "shorten the 
 3. Write, record and show it as in steps 3 and 4. The core re-renders all three files and counts a new `revision`.
 
 An edit that would need experience the Base resume doesn't hold is a Profile change: send the job seeker to `/job-butler:setup`, then tailor again.
+
+## Cover letters
+
+A cover letter is made only when an Application's Fill plan has a cover-letter field, or when the job seeker asks for one ("write a cover letter for Acme"). Otherwise make none.
+
+1. Run `tailor cover-letter pending` (adding the Application IDs the job seeker named and `--requested yes` when they asked). `COVER_LETTER_NOT_NEEDED` means neither trigger holds: tell them so.
+2. Dispatch one `tailor-worker` per Application with that object as JSON in its prompt, write the reply exactly as returned to its `judgments_file`, and run `tailor cover-letter record <application_id> --input <judgments_file>` (plus `--requested yes` if asked). Retry once on `JUDGMENT_INVALID` as in step 3.
+3. Show `text` and the `paths`. A letter adds a form's cover-letter upload only through `apply plan` (the file is kind `cover_letter`); tell the job seeker to re-run Apply if a plan already exists.

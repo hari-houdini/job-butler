@@ -1,0 +1,27 @@
+{
+  "opening": {
+    "text": "Acme's payments platform team needs a backend engineer who has already shortened card authorisation paths, and that is the work I want to do next.",
+    "sources": ["experience.0.bullets.0"]
+  },
+  "body": [
+    {
+      "text": "I like helping colleagues grow, and I would bring that habit to a team that is building up its payments engineers. Designing a clear Application Programming Interface (API) that other teams enjoy using is where I do my best work.",
+      "sources": ["experience.0.bullets.1", "skills.0"]
+    }
+  ],
+  "closing": "Thank you for considering my application. I would welcome a conversation about the role.",
+  "keywords": [
+    {
+      "keyword": "Application Programming Interface",
+      "abbreviation": "API",
+      "advert_quote": "design and build Application Programming Interfaces",
+      "status": "used"
+    },
+    {
+      "keyword": "Kafka",
+      "abbreviation": null,
+      "advert_quote": "Kafka is a plus",
+      "status": "gap"
+    }
+  ]
+}

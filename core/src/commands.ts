@@ -15,6 +15,7 @@ import {
 } from "./approval.ts";
 import { detectBoard } from "./boards/detect.ts";
 import type { Command } from "./cli.ts";
+import { coverLetterPending, coverLetterRecord } from "./cover-letter.ts";
 import { ensureSafeDataDir } from "./data-dir.ts";
 import { confirmSameJob, discoverBoards, splitMerged } from "./discover.ts";
 import {
@@ -416,6 +417,31 @@ export const commands: Record<string, Command> = {
       "into the Application's folder, and mark it Tailored. Run again with an edit to re-render.",
     run: async (ctx) => ({
       ...(await tailorRecord(ctx.dataDir, ctx.args[0], await ctx.readInput())),
+    }),
+  },
+
+  "tailor cover-letter pending": {
+    usage: "tailor cover-letter pending [<application-id>...] [--requested yes]",
+    summary:
+      "The Tailored Applications whose Fill plan has a cover-letter field and no letter yet (or the " +
+      "ones named; --requested yes when the job seeker asked) with the advert and Base resume facts.",
+    run: async ({ dataDir, args, flags }) => ({
+      ...(await coverLetterPending(dataDir, args, flags.requested === "yes")),
+    }),
+  },
+
+  "tailor cover-letter record": {
+    usage: "tailor cover-letter record <application-id> --input <file>|- [--requested yes]",
+    summary:
+      "Check the worker's cover letter against the Base resume, render Markdown, DOCX and PDF " +
+      "beside the resume files. Refused unless the form has a cover-letter field or --requested yes.",
+    run: async (ctx) => ({
+      ...(await coverLetterRecord(
+        ctx.dataDir,
+        ctx.args[0],
+        await ctx.readInput(),
+        ctx.flags.requested === "yes",
+      )),
     }),
   },
 

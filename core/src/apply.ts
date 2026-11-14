@@ -169,9 +169,17 @@ function identityOf(profile: Profile): Record<string, string | null> {
 }
 
 function tailorFiles(app: StoredRecord): { kind: string; name: string; path: string }[] {
-  const t = app.tailor as { folder?: string; files?: Record<string, string> } | null;
+  const t = app.tailor as {
+    folder?: string;
+    files?: Record<string, string>;
+    cover_letter?: { files?: Record<string, string> };
+  } | null;
   if (t?.folder === undefined || t.files?.docx === undefined) return [];
-  return [{ kind: "resume", name: t.files.docx, path: join(t.folder, t.files.docx) }];
+  const cover = t.cover_letter?.files?.docx;
+  return [
+    { kind: "resume", name: t.files.docx, path: join(t.folder, t.files.docx) },
+    ...(cover ? [{ kind: "cover_letter", name: cover, path: join(t.folder, cover) }] : []),
+  ];
 }
 
 export async function applyPrepare(dataDir: string, ids: string[]) {
