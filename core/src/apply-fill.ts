@@ -4,6 +4,7 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Status } from "./application.ts";
+import { liveEvaluation, loadLimitWorld, sourceText, windowText } from "./application-limit.ts";
 import { type Blocker, type FillPlan, type PlanField, saveApplication } from "./apply.ts";
 import { openDriver, type PageControl, PageError } from "./apply-driver.ts";
 import { timestamp } from "./env.ts";
@@ -205,6 +206,29 @@ export async function applyClose(dataDir: string, id: string | undefined) {
   return { application_id: app.id, closed: true };
 }
 
+/** The Listing's Application-limit standing now (story 87); a warning only when it is over. */
+async function limitWarning(dataDir: string, app: StoredRecord) {
+  const listing =
+    typeof app.listing === "string" ? await getRecord(dataDir, "listing", app.listing) : undefined;
+  if (listing === undefined) return null;
+  let world: Awaited<ReturnType<typeof loadLimitWorld>>;
+  try {
+    world = await loadLimitWorld(dataDir);
+  } catch (e) {
+    if (e instanceof CoreError && e.code.startsWith("PREFERENCES_")) return null;
+    throw e;
+  }
+  const ev = liveEvaluation(listing, world, timestamp());
+  if (ev.status !== "over") return null;
+  return {
+    limit: ev.limit.count,
+    window: windowText(ev.limit),
+    source: sourceText(ev.limit),
+    existing: ev.existing,
+    label: ev.label,
+  };
+}
+
 export async function applyHandover(dataDir: string, id: string | undefined) {
   const app = await load(dataDir, id);
   const plan = planOf(app);
@@ -257,8 +281,10 @@ export async function applyHandover(dataDir: string, id: string | undefined) {
       );
     });
   }
+  const limit_warning = await limitWarning(dataDir, app);
   const text = [
     `Handover: ${app.company} · ${app.title}`,
+    ...(limit_warning ? [`Application limit: ${limit_warning.label}`] : []),
     ...fields.map((f) => `  ${f.label}: ${f.value}`),
     "Files attached:",
     ...files.map((f) => `  ${f.name} (${f.bytes} bytes)`),
@@ -269,6 +295,7 @@ export async function applyHandover(dataDir: string, id: string | undefined) {
     form_url: plan.form.url,
     fields,
     files,
+    limit_warning,
     text,
   };
 }

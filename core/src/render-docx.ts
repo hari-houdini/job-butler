@@ -6,7 +6,7 @@ import type { Block, DocumentModel } from "./document.ts";
 const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 
-function esc(text: string): string {
+function stripControlChars(text: string): string {
   return [...text]
     .filter((c) => {
       const n = c.charCodeAt(0);
@@ -21,7 +21,7 @@ function esc(text: string): string {
 
 function paragraph(style: string, text: string, numbered = false): string {
   const num = numbered ? '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>' : "";
-  return `<w:p><w:pPr><w:pStyle w:val="${style}"/>${num}</w:pPr><w:r><w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>`;
+  return `<w:p><w:pPr><w:pStyle w:val="${style}"/>${num}</w:pPr><w:r><w:t xml:space="preserve">${stripControlChars(text)}</w:t></w:r></w:p>`;
 }
 
 function blockXml(b: Block): string {

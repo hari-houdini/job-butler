@@ -28,7 +28,7 @@ import {
   MAX_FILE_BYTES,
   neutralName,
   type Run,
-  str,
+  textOrEmpty,
   words,
 } from "./tailor.ts";
 import { isObject, type Problems } from "./validate.ts";
@@ -62,7 +62,9 @@ function planHasCoverField(app: StoredRecord): boolean {
     ...(Array.isArray(plan.fields) ? plan.fields : []),
     ...(Array.isArray(plan.unmappable) ? plan.unmappable : []),
   ];
-  return all.some((f: Field) => COVER_FIELD.test(`${str(f?.name)} ${str(f?.label)}`));
+  return all.some((f: Field) =>
+    COVER_FIELD.test(`${textOrEmpty(f?.name)} ${textOrEmpty(f?.label)}`),
+  );
 }
 
 function triggerOf(app: StoredRecord, requested: boolean): Trigger | null {
@@ -227,20 +229,22 @@ function check(
     }
   });
   if (opening?.text && body.length > 0) {
-    const total = words([opening.text, ...body.map((b) => b.text), str(j.closing)].join(" "));
+    const total = words(
+      [opening.text, ...body.map((b) => b.text), textOrEmpty(j.closing)].join(" "),
+    );
     if (total > MAX_LETTER_WORDS) {
       problems.push(`the letter is ${total} words; keep it to ${MAX_LETTER_WORDS} or fewer`);
     }
   }
   if (problems.length > 0 || !opening) return { problems };
   return {
-    judgment: { opening, body, closing: str(j.closing), keywords: keywords as Keyword[] },
+    judgment: { opening, body, closing: textOrEmpty(j.closing), keywords: keywords as Keyword[] },
     problems,
   };
 }
 
 function buildDocument(identity: Item, company: string, j: CoverLetterJudgment) {
-  const name = str(identity.name) || "Applicant";
+  const name = textOrEmpty(identity.name) || "Applicant";
   const blocks: Block[] = [{ kind: "title", text: name }];
   for (const line of contactLines(identity)) blocks.push({ kind: "line", text: line });
   blocks.push({ kind: "paragraph", text: `Dear ${company} hiring team,` });
@@ -296,8 +300,8 @@ export async function coverLetterRecord(
     );
   }
 
-  const rendered = renderDocument(buildDocument(identity, str(found.company), j));
-  const base = neutralName(str(identity.name), "Cover-Letter");
+  const rendered = renderDocument(buildDocument(identity, textOrEmpty(found.company), j));
+  const base = neutralName(textOrEmpty(identity.name), "Cover-Letter");
   const names = { md: `${base}.md`, docx: `${base}.docx`, pdf: `${base}.pdf` };
   for (const [kind, size] of [
     ["DOCX", rendered.docx.length],

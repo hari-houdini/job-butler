@@ -283,6 +283,38 @@ test("the Shortlist ranks by Fit score, lettered a, b, c, and drops gone Listing
   assert.match(text, /why <letter> · pick a, b · show excluded · restore <name> · help/);
 });
 
+test("each Shortlist row shows the LinkedIn pairing, or that the posting is LinkedIn-only", async (t) => {
+  const dataDir = tempDir(t);
+  const paired = listing("greenhouse:acme:101", "Senior Backend Engineer", "London");
+  paired.aliases.push({
+    id: "linkedin:4012345678",
+    url: "https://www.linkedin.com/jobs/view/4012345678/",
+  });
+  const only = listing("greenhouse:acme:102", "Platform Engineer", "Remote (UK)");
+  only.aliases = [{ id: "linkedin:999", url: "https://www.linkedin.com/jobs/view/999/" }];
+  const plain = listing("greenhouse:acme:103", "Senior Backend Engineer", "Berlin");
+  await setUp(dataDir, [paired, only, plain] as typeof LISTINGS);
+  const rated = rating("greenhouse:acme:101", "greenhouse:acme:102", "greenhouse:acme:103");
+  for (const j of rated.judgments) {
+    if (j.listing_id === "greenhouse:acme:102") j.listing_id = "linkedin:999";
+  }
+  await screen(dataDir, rated);
+
+  const r = await runCli(["screen", "digest"], { dataDir });
+
+  assert.equal(r.code, 0, r.stdout);
+  const text = String(r.json.text);
+  assert.match(
+    text,
+    /Senior Backend Engineer +London[^\n]*\n +LinkedIn: also on greenhouse as Senior Backend Engineer, London\n/,
+  );
+  assert.match(
+    text,
+    /Platform Engineer +Remote[^\n]*\n +LinkedIn: LinkedIn-only, existence unverified\n/,
+  );
+  assert.match(text, /Senior Backend Engineer +Berlin[^\n]*\n(?! +LinkedIn)/);
+});
+
 test("why <letter> prints each check with its result and evidence", async (t) => {
   const dataDir = tempDir(t);
   await setUp(dataDir);

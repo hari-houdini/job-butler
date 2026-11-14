@@ -25,7 +25,7 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
    - Dispatch the `screen-worker` subagent once, with the whole `screen pending` JSON (`listings` and `profile`) in its prompt.
    - Write its reply, exactly as returned, to the `judgments_file` path with the Write tool.
    - Run `screen record --input <judgments_file>`. On `JUDGMENT_INVALID`, dispatch the worker once more with the same JSON plus the error message, write and record again; after a second refusal, relay it and go to step 4.
-4. Run `screen digest` and show its `text` as is, in a code block.
+4. Run `screen digest` and show its `text` as is, in a code block. A row with a `LinkedIn:` line has a LinkedIn copy: paired with the employer's posting, or LinkedIn-only and unverified.
 5. Take replies until the job seeker is done:
    - **`why <letter>`**: run `screen why <letter>` and show its `text` in a code block.
    - **`pick a, b`**: see Picking below.

@@ -20,11 +20,13 @@ import {
   suggestSlots,
 } from "./application-limit.ts";
 import { treePath, writeTrees } from "./decision-tree.ts";
+import type { ListingData } from "./dedupe.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { type AppliedMark, externalMark } from "./external.ts";
 import { fitStep } from "./fit.ts";
 import { ghostStep } from "./ghost.ts";
+import { linkedInPairing } from "./linkedin.ts";
 import { readRunLock } from "./lock.ts";
 import { assertProfileComplete, readProfile } from "./profile.ts";
 import { reapplyRestore } from "./restore.ts";
@@ -297,6 +299,17 @@ export interface ShortlistItem {
   suggested: boolean;
   /** Set when the company has more Shortlisted Listings than slots left. */
   group: LimitGroup | null;
+  /** Where the LinkedIn copy stands (#38), shown at the pick; null when the Listing has none. */
+  linkedin: string | null;
+}
+
+/** "also on greenhouse as <title>, <location>" for a paired Listing, else LinkedIn-only. */
+function pairingText(l: StoredRecord): string | null {
+  const p = linkedInPairing(l as unknown as ListingData);
+  if (p === null) return null;
+  if (p.ats === null) return "LinkedIn-only, existence unverified";
+  const where = typeof l.location === "string" && l.location !== "" ? `, ${l.location}` : "";
+  return `also on ${p.ats.source} as ${String(l.title)}${where}`;
 }
 
 function letter(i: number): string {
@@ -352,6 +365,7 @@ export async function rankShortlist(dataDir: string): Promise<ShortlistItem[]> {
     badges: badgesOf(l),
     suggested: slots.get(l.id)?.suggested ?? false,
     group: slots.get(l.id)?.group ?? null,
+    linkedin: pairingText(l),
   }));
 }
 
@@ -441,6 +455,7 @@ export async function digest(dataDir: string) {
       `  ${s.letter}) ${String(s.fit).padStart(2)} ${s.band.padEnd(8)} ${s.company.padEnd(18)} ` +
         `${s.title.padEnd(34)} ${s.location ?? ""}${marks ? `  ${marks}` : ""}`.trimEnd(),
     );
+    if (s.linkedin) lines.push(`      LinkedIn: ${s.linkedin}`);
   }
   const groups = new Map<string, ShortlistItem[]>();
   for (const s of shortlist.filter((x) => x.group)) {

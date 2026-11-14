@@ -433,7 +433,6 @@ export function requiredPay(going: number | null, code: string, flags: Flags): R
 }
 
 const ROLE_RULE = "SOC 2020 code on the Higher Skilled list";
-const PAY_RULE = `Pay at least the higher of ${gbp(GENERAL_THRESHOLD)} and the going rate`;
 const SEVERITY = ["Higher Skilled", "Medium Skilled", "Ineligible"];
 
 interface RoleAndPay {

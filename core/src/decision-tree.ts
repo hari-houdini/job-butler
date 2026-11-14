@@ -30,7 +30,7 @@ const CLASS_DEFS = [
 const MAX_TEXT = 140;
 
 /** Text safe inside a quoted Mermaid label: entity codes for quotes and angle brackets. */
-function esc(text: string): string {
+function escapeMermaidLabel(text: string): string {
   const flat = text.replace(/\s+/g, " ").trim();
   const short = flat.length > MAX_TEXT ? `${flat.slice(0, MAX_TEXT - 1)}…` : flat;
   return short.replace(/"/g, "#quot;").replace(/</g, "#lt;").replace(/>/g, "#gt;");
@@ -63,9 +63,9 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
     "%% Generated from stored records; regenerated in full on every change. Don't edit.",
     "flowchart TD",
   ];
-  const location = listing.location ? `<br/>${esc(String(listing.location))}` : "";
+  const location = listing.location ? `<br/>${escapeMermaidLabel(String(listing.location))}` : "";
   out.push(
-    `  L["<b>${esc(String(listing.company))}</b><br/>${esc(String(listing.title))}${location}"]:::src`,
+    `  L["<b>${escapeMermaidLabel(String(listing.company))}</b><br/>${escapeMermaidLabel(String(listing.title))}${location}"]:::src`,
   );
   overrideNodes(listing).forEach((node, i) => {
     out.push(`  o${i + 1}${node}:::human`, `  L -.- o${i + 1}`);
@@ -76,8 +76,8 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
   for (const c of screen.checks) {
     const id = nodeId(c.check);
     out.push(
-      `  ${id}["<b>${esc(c.name)}</b><br/><small>${esc(c.rule)}</small><br/>→ ${esc(c.result)}` +
-        `<br/><i>${esc(c.citation)}</i>"]:::${checkClass(c)}`,
+      `  ${id}["<b>${escapeMermaidLabel(c.name)}</b><br/><small>${escapeMermaidLabel(c.rule)}</small><br/>→ ${escapeMermaidLabel(c.result)}` +
+        `<br/><i>${escapeMermaidLabel(c.citation)}</i>"]:::${checkClass(c)}`,
     );
     out.push(`  ${prev} ${dashed ? "-.->" : "-->"} ${id}`);
     if (c.check === screen.excluded_by) {
@@ -109,22 +109,24 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
       ? `Your Approval (${e.approval.checkpoint}, ${e.approval.approved_at}): ${e.approval.action}`
       : `${e.stage} · ${e.at}`;
     out.push(
-      `  ${id}["<b>${esc(move)}</b><br/><small>${esc(e.stage)} · ${esc(e.at)}</small><br/>` +
-        `${esc(e.reason)}<br/><i>${esc(cite)}</i>"]:::${e.approval ? "human" : "ok"}`,
+      `  ${id}["<b>${escapeMermaidLabel(move)}</b><br/><small>${escapeMermaidLabel(e.stage)} · ${escapeMermaidLabel(e.at)}</small><br/>` +
+        `${escapeMermaidLabel(e.reason)}<br/><i>${escapeMermaidLabel(cite)}</i>"]:::${e.approval ? "human" : "ok"}`,
     );
     out.push(`  ${prev} --> ${id}`);
     if (e.message) {
       const m = e.message;
       out.push(
-        `  ${id}m["<b>Outcome: ${esc(m.classification.replace(/_/g, " "))}</b><br/>` +
-          `${esc(m.subject)}<br/><small>from ${esc(m.from)} · ${esc(m.received_at)}</small><br/>` +
-          `<i>Message ${esc(m.id)} · matched by ${esc(m.matched_by)}</i>"]:::out`,
+        `  ${id}m["<b>Outcome: ${escapeMermaidLabel(m.classification.replace(/_/g, " "))}</b><br/>` +
+          `${escapeMermaidLabel(m.subject)}<br/><small>from ${escapeMermaidLabel(m.from)} · ${escapeMermaidLabel(m.received_at)}</small><br/>` +
+          `<i>Message ${escapeMermaidLabel(m.id)} · matched by ${escapeMermaidLabel(m.matched_by)}</i>"]:::out`,
         `  ${id} -.- ${id}m`,
       );
     }
     prev = id;
   });
-  out.push(`  ${prev} --> ST(["Status: ${esc(statusLabel(String(application.status)))}"]):::out`);
+  out.push(
+    `  ${prev} --> ST(["Status: ${escapeMermaidLabel(statusLabel(String(application.status)))}"]):::out`,
+  );
   return finish(out);
 }
 
@@ -158,8 +160,8 @@ function overrideNodes(listing: StoredRecord): string[] {
       what = `Split from ${o.from}: a different job, never merged again`;
     }
     return (
-      `["<b>Override: ${esc(o.kind)}</b><br/>${esc(what)}<br/>` +
-      `<i>Your decision${o.at ? ` · ${esc(o.at)}` : ""}</i>"]`
+      `["<b>Override: ${escapeMermaidLabel(o.kind)}</b><br/>${escapeMermaidLabel(what)}<br/>` +
+      `<i>Your decision${o.at ? ` · ${escapeMermaidLabel(o.at)}` : ""}</i>"]`
     );
   });
 }

@@ -38,6 +38,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
   - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
+  - `CLAUDE_ENV_FILE` (set by Claude Code; read with `claudeEnvFile()`) and `JOB_BUTLER_SESSION_PID` (read with `sessionPidOverride()`): read in `env.ts` like the rest.
 
 ## Data directory and pipeline store (ADR 0001)
 
@@ -100,7 +101,7 @@ Drive `hook pre-tool-use` with the PreToolUse JSON on stdin (`session_id`, `tool
 
 - A Stage skill lives at `skills/<stage>/SKILL.md`, user-invoked (`disable-model-invocation: true`), and the `/job-butler` skill routes its Stage name to it by reading that file. Its shape: `run start <stage>` → the Stage's core commands → report → `run end --run <run_id>` unless `joined` was true. Run `run end` on every exit after a successful `run start`. Relay `error.message` as written.
 - The skill owns all conversation and every pipeline write; each write is one core command per batch (`discover boards` writes a whole run in one `withWriter`).
-- A **worker subagent** (`agents/<stage>-worker.md`) does only the Stage's LLM judgments. It has no outward tools and no Bash, so it can neither write pipeline state nor fetch: give it `tools: Read` at most, and the cheapest `model` that fits (haiku for extraction and classification, sonnet for rating and tailoring). The round trip: a core command returns the material to judge as JSON → the skill dispatches the worker with that JSON in the prompt (the worker reads nothing else, so Profile data reaches it only when the judgment needs it) → the worker returns one JSON object → the skill passes it to the core with `--input -`, which validates it and writes. Store each judgment's fixture in `core/test/fixtures/judgments/`.
+- A **worker subagent** (`agents/<stage>-worker.md`) does only the Stage's LLM judgments. It has no outward tools and no Bash, so it can neither write pipeline state nor fetch: give it `tools: Read` at most (the exceptions are `track-worker` and `alert-worker`, which read mail and calendar and so list read-only connector tools, never a writing one), and the cheapest `model` that fits (haiku for extraction and classification, sonnet for rating and tailoring). The round trip: a core command returns the material to judge as JSON → the skill dispatches the worker with that JSON in the prompt (the worker reads nothing else, so Profile data reaches it only when the judgment needs it) → the worker returns one JSON object → the skill passes it to the core with `--input -`, which validates it and writes. Store each judgment's fixture in `core/test/fixtures/judgments/`.
 - When the judgment JSON can carry free text (quotes from adverts, resume facts), the skill writes the worker's reply with the Write tool to a file under `<data>/inbox/` and passes `--input <file>`, rather than a heredoc: a backtick or `$(` in the text would make the Approval hook deny the Bash call.
 - One worker per Stage, shared by every judgment of that Stage: a later check that needs an LLM judgment adds its own section to the worker's per-Listing object and its instructions to the worker file (see "Screen check pipeline").
 - `agents/screen-worker.md` (#34, `model: sonnet`, `tools: Read`) rates skills against the Base resume, one batch dispatch per Screen run: input the `screen pending` JSON, output `{"judgments": [{listing_id, skills_rating}]}` for `screen record`.
@@ -341,7 +342,7 @@ Detected by: a name pattern (recruitment, recruiter, resourcing, staffing, talen
 
 ## Track tracer (set by #48)
 
-`core/src/track.ts`; skill `skills/track/SKILL.md`; worker `agents/track-worker.md` (`model: haiku`, tools exactly `search_threads`, `get_thread`, `get_message` of the Gmail connector: read-only, no Bash, no Read, no writes).
+`core/src/track.ts`; skill `skills/track/SKILL.md`; worker `agents/track-worker.md` (`model: haiku`, read-only: the Gmail connector's `search_threads`, `get_thread`, `get_message` and, from #49, the Google Calendar connector's `search_events`, `get_event`, `list_events`; no Bash, no Read, no writes).
 
 - **Round trip:** `track window` (the `after:` query and `processed_ids`) → the skill dispatches the worker → the skill writes its reply to `<data>/inbox/track-messages.json` → `track record --input <file>` → digest `text` → the job seeker replies `approve <n>`. Other commands: `track propose <application-id> withdrawn|no_response --input {"reason"}` (proposals that don't come from mail), `track dismiss <n>...`, `track digest`.
 - **Worker JSON:** `{"messages": [{message_id, thread_id, from, subject, received_at, classification, ats?: {job_url, job_id, board_slug, workday_tenant}}]}`; `classification` is `acknowledgement`, `rejection`, `interview_invite`, `offer` or `other_job_mail`. Refused as `CLASSIFICATION_INVALID`. Fixture: `fixtures/judgments/track-classification.json`.

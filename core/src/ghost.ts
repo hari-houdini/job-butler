@@ -4,7 +4,7 @@
 // existence comes from the latest Discover run (a Listing missing from it is marked gone).
 //
 // The weights and band cut-offs below are the one place to tune. They follow the ranking in
-// docs/research/ghost-job-signals.md (structural signals strongest, missing salary weakest)
+// research/ghost-job-signals:docs/research/ghost-job-signals.md, on that branch only (structural signals strongest, missing salary weakest)
 // and are calibrated in a later pass; see core-conventions.md, "Screen exclusions and ghost score".
 import { now as clock } from "./env.ts";
 import type { Check, CheckSpec, ScreenStep } from "./screen-check.ts";

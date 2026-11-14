@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { runCli, tempDir } from "./harness.ts";
@@ -265,6 +265,17 @@ test("session start exports the session id to later Bash calls", async (t) => {
   });
   assert.equal(r.code, 0);
   assert.equal(readFileSync(envFile, "utf8"), "export JOB_BUTLER_SESSION_ID=abc-123\n");
+});
+
+test("session start writes nothing when Claude Code gives no env file", async (t) => {
+  const dir = tempDir(t);
+  const r = await runCli(["hook", "session-start"], {
+    dataDir: dir,
+    input: { session_id: "abc-123", hook_event_name: "SessionStart" },
+    env: { CLAUDE_ENV_FILE: undefined },
+  });
+  assert.equal(r.code, 0);
+  assert.deepEqual(readdirSync(dir), []);
 });
 
 test("the plugin's hook command blocks the tool even when the core can't run", async (t) => {

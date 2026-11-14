@@ -35,35 +35,40 @@ export interface Fact {
 
 export type Item = Record<string, unknown>;
 export const items = (v: unknown): Item[] => (Array.isArray(v) ? v.filter(isObject) : []);
-export const str = (v: unknown): string => (typeof v === "string" ? v : "");
+export const textOrEmpty = (v: unknown): string => (typeof v === "string" ? v : "");
 
-const roleText = (e: Item) => `${str(e.title)}, ${str(e.employer)}`;
-const schoolText = (e: Item) => `${str(e.qualification)}, ${str(e.institution)}`;
-const certText = (c: Item) => [str(c.name), str(c.issuer)].filter(Boolean).join(", ");
+const roleText = (e: Item) => `${textOrEmpty(e.title)}, ${textOrEmpty(e.employer)}`;
+const schoolText = (e: Item) => `${textOrEmpty(e.qualification)}, ${textOrEmpty(e.institution)}`;
+const certText = (c: Item) =>
+  [textOrEmpty(c.name), textOrEmpty(c.issuer)].filter(Boolean).join(", ");
 
 /** Every Base resume fact with a stable reference ("experience.0.bullets.1"). */
 export function baseFacts(baseResume: unknown): Fact[] {
   const br = isObject(baseResume) ? baseResume : {};
   const facts: Fact[] = [];
   if (isObject(br.summary))
-    facts.push({ ref: "summary", kind: "summary", text: str(br.summary.text) });
+    facts.push({ ref: "summary", kind: "summary", text: textOrEmpty(br.summary.text) });
   for (const [i, e] of items(br.experience).entries()) {
     facts.push({ ref: `experience.${i}`, kind: "role", text: roleText(e) });
     for (const [j, b] of items(e.bullets).entries()) {
-      facts.push({ ref: `experience.${i}.bullets.${j}`, kind: "bullet", text: str(b.text) });
+      facts.push({
+        ref: `experience.${i}.bullets.${j}`,
+        kind: "bullet",
+        text: textOrEmpty(b.text),
+      });
     }
   }
   for (const [i, e] of items(br.education).entries()) {
     facts.push({ ref: `education.${i}`, kind: "education", text: schoolText(e) });
   }
   for (const [i, s] of items(br.skills).entries()) {
-    facts.push({ ref: `skills.${i}`, kind: "skill", text: str(s.name) });
+    facts.push({ ref: `skills.${i}`, kind: "skill", text: textOrEmpty(s.name) });
   }
   for (const [i, p] of items(br.projects).entries()) {
     facts.push({
       ref: `projects.${i}`,
       kind: "project",
-      text: [str(p.name), str(p.description)].filter(Boolean).join(": "),
+      text: [textOrEmpty(p.name), textOrEmpty(p.description)].filter(Boolean).join(": "),
     });
   }
   for (const [i, c] of items(br.certifications).entries()) {
@@ -286,16 +291,21 @@ export function keywordProblems(keywords: Keyword[], runs: Run[]): Problems {
 // Rendering
 
 export function contactLines(identity: Item): string[] {
-  const first = [str(identity.email), str(identity.phone), str(identity.location)].filter(Boolean);
-  const links = items(identity.links).map((l) => `${str(l.label)}: ${str(l.url)}`);
+  const first = [
+    textOrEmpty(identity.email),
+    textOrEmpty(identity.phone),
+    textOrEmpty(identity.location),
+  ].filter(Boolean);
+  const links = items(identity.links).map((l) => `${textOrEmpty(l.label)}: ${textOrEmpty(l.url)}`);
   return [first.join(" | "), links.join(" | ")].filter(Boolean);
 }
 
-const dates = (e: Item) => (e.start ? `${str(e.start)} - ${str(e.end) || "Present"}` : str(e.end));
+const dates = (e: Item) =>
+  e.start ? `${textOrEmpty(e.start)} - ${textOrEmpty(e.end) || "Present"}` : textOrEmpty(e.end);
 
 /** The resume as a document model: the Base resume's own fields, the judgment's words. */
 function buildDocument(identity: Item, br: Item, j: Judgment): DocumentModel {
-  const blocks: Block[] = [{ kind: "title", text: str(identity.name) || "Resume" }];
+  const blocks: Block[] = [{ kind: "title", text: textOrEmpty(identity.name) || "Resume" }];
   for (const line of contactLines(identity)) blocks.push({ kind: "line", text: line });
   blocks.push({ kind: "heading", text: "Summary" }, { kind: "paragraph", text: j.summary.text });
   const at = (section: string, ref: string): Item =>
@@ -303,15 +313,19 @@ function buildDocument(identity: Item, br: Item, j: Judgment): DocumentModel {
   if (j.experience.length > 0) blocks.push({ kind: "heading", text: "Experience" });
   for (const role of j.experience) {
     const e = at("experience", role.fact);
-    const meta = [str(e.location), dates(e)].filter(Boolean).join(" | ");
+    const meta = [textOrEmpty(e.location), dates(e)].filter(Boolean).join(" | ");
     blocks.push({ kind: "entry", text: roleText(e), ...(meta ? { meta } : {}) });
     for (const b of role.bullets) blocks.push({ kind: "bullet", text: b.text });
   }
   if (j.projects.length > 0) blocks.push({ kind: "heading", text: "Projects" });
   for (const p of j.projects) {
     const e = at("projects", p.fact);
-    blocks.push({ kind: "entry", text: str(e.name), ...(e.url ? { meta: str(e.url) } : {}) });
-    if (e.description) blocks.push({ kind: "paragraph", text: str(e.description) });
+    blocks.push({
+      kind: "entry",
+      text: textOrEmpty(e.name),
+      ...(e.url ? { meta: textOrEmpty(e.url) } : {}),
+    });
+    if (e.description) blocks.push({ kind: "paragraph", text: textOrEmpty(e.description) });
   }
   if (j.education.length > 0) blocks.push({ kind: "heading", text: "Education" });
   for (const s of j.education) {
@@ -321,13 +335,19 @@ function buildDocument(identity: Item, br: Item, j: Judgment): DocumentModel {
   if (j.skills.length > 0) {
     blocks.push(
       { kind: "heading", text: "Skills" },
-      { kind: "paragraph", text: j.skills.map((s) => str(at("skills", s.fact).name)).join(", ") },
+      {
+        kind: "paragraph",
+        text: j.skills.map((s) => textOrEmpty(at("skills", s.fact).name)).join(", "),
+      },
     );
   }
   if (j.certifications.length > 0) blocks.push({ kind: "heading", text: "Certifications" });
   for (const c of j.certifications) {
     const e = at("certifications", c.fact);
-    blocks.push({ kind: "bullet", text: `${certText(e)}${e.date ? ` (${str(e.date)})` : ""}` });
+    blocks.push({
+      kind: "bullet",
+      text: `${certText(e)}${e.date ? ` (${textOrEmpty(e.date)})` : ""}`,
+    });
   }
   return { blocks };
 }
@@ -508,7 +528,7 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
 
   const document = buildDocument(identity, br, j);
   const rendered = renderDocument(document);
-  const base = neutralName(str(identity.name), "Resume");
+  const base = neutralName(textOrEmpty(identity.name), "Resume");
   const names = { md: `${base}.md`, docx: `${base}.docx`, pdf: `${base}.pdf` };
   for (const [kind, size] of [
     ["DOCX", rendered.docx.length],
@@ -570,7 +590,13 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
       ["notes.json", `${JSON.stringify(notes, null, 2)}\n`],
       [
         "notes.md",
-        notesMarkdown({ company: str(app.company), title: str(app.title), j, table, sources }),
+        notesMarkdown({
+          company: textOrEmpty(app.company),
+          title: textOrEmpty(app.title),
+          j,
+          table,
+          sources,
+        }),
       ],
     ];
     for (const [name, content] of files) await writeThenReplace(join(dir, name), content);
