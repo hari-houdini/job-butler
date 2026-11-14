@@ -324,7 +324,7 @@ test("Medium ghost risk shows a badge but keeps its place in the fit order", asy
   assert.equal(l.screen.flags.length, 0);
   assert.deepEqual(
     l.screen.badges.map((b) => b.label),
-    ["Ghost risk: medium"],
+    ["Ghost risk: medium", "Sponsorship: unknown"], // no Employer is matched in this test
   );
 });
 
@@ -396,7 +396,7 @@ test("restore <name> records an override and returns the Listing to its fit posi
   assert.equal(check(l, "scam.signs").status, "fail");
   assert.deepEqual(
     l.screen.badges.map((b) => b.label),
-    ["Restored: Scam signs"],
+    ["Sponsorship: unknown", "Restored: Scam signs"],
   );
   assert.ok((l.screen.fit?.score ?? 0) > 0);
   assert.equal(check(l, "ghost.score").status, "pass");

@@ -307,6 +307,11 @@ test("why <letter> prints each check with its result and evidence", async (t) =>
       "scam.no_vacancy",
       "deny.list",
       "ghost.score",
+      "sponsorship.employer",
+      "sponsorship.role",
+      "sponsorship.pay",
+      "sponsorship.wording",
+      "sponsorship.verdict",
       "fit.location",
       "fit.seniority",
       "fit.target_roles",
@@ -496,7 +501,8 @@ test("each screened Listing gets a Decision tree with check, rule, result and ci
     mmd,
   );
   assert.ok(lines.includes("  L --> c_scam_signs"));
-  assert.ok(lines.includes("  c_ghost_score --> c_fit_location"));
+  assert.ok(lines.includes("  c_ghost_score --> c_sponsorship_employer"));
+  assert.ok(lines.includes("  c_sponsorship_verdict --> c_fit_location"));
   assert.ok(lines.includes("  c_fit_location --> c_fit_seniority"));
   assert.match(
     mmd,

@@ -36,6 +36,7 @@ import { restoreListing, showExcluded } from "./restore.ts";
 import { importResume } from "./resume.ts";
 import { deleteRecords, previewPrune, prune } from "./retention.ts";
 import { digest, screenPending, screenRecord, screenRescore, why } from "./screen.ts";
+import { sponsorshipRefresh } from "./sponsorship.ts";
 import { assertRecordType, getRecord, listRecords, notFound, withWriter } from "./store.ts";
 import { tailorPending, tailorRecord } from "./tailor.ts";
 import {
@@ -295,6 +296,13 @@ export const commands: Record<string, Command> = {
     usage: "sponsor status",
     summary: "Say how fresh the local sponsor register copy is.",
     run: async ({ dataDir }) => ({ ...(await sponsorStatus(dataDir)) }),
+  },
+
+  "sponsorship refresh": {
+    usage: "sponsorship refresh",
+    summary:
+      "Download the GOV.UK occupation and going-rate tables (at most weekly) and say how fresh they are.",
+    run: async ({ dataDir }) => ({ ...(await sponsorshipRefresh(dataDir)) }),
   },
 
   "employer match": {

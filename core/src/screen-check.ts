@@ -3,6 +3,7 @@
 // stops the pipeline: every later Check is recorded as "not reached". See
 // docs/agents/core-conventions.md, "Screen check pipeline".
 import type { loadPreferences } from "./preferences.ts";
+import type { SponsorshipContext } from "./sponsorship.ts";
 import type { StoredRecord } from "./store.ts";
 import type { Problems } from "./validate.ts";
 
@@ -65,6 +66,8 @@ export interface StepContext {
   world: ScreenWorld;
   /** Screen's clock (ISO 8601 UTC). */
   now: string;
+  /** Sponsorship (#41): the regime's tables, loaded once per batch (Employers are in `world`). */
+  sponsorship?: SponsorshipContext;
 }
 
 export interface StepResult {
