@@ -12,7 +12,7 @@ import { getRecord, withWriter } from "./store.ts";
 import {
   type ClassifiedMessage,
   CONNECTOR,
-  learnableDomain,
+  learnableDomains,
   type MessageRef,
   readSync,
   syncFields,
@@ -102,7 +102,7 @@ export async function createExternal(dataDir: string, args: string[]) {
       evidence_messages: messages.map(refOf),
       gmail_threads: unique(mail.map((m) => m.thread_id)),
       ...(calendar.length > 0 ? { calendar_events: unique(calendar.map((m) => m.thread_id)) } : {}),
-      mail_domains: unique(messages.map((m) => learnableDomain(m.from))),
+      mail_domains: unique(messages.flatMap((m) => learnableDomains(m))),
     });
     await w.put("sync", CONNECTOR, {
       ...fields,

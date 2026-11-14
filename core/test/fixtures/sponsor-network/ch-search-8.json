@@ -1,0 +1,17 @@
+{
+  "kind": "search#companies",
+  "total_results": 1,
+  "items": [
+    {
+      "title": "GREENFIELD ANALYTICS LIMITED",
+      "company_number": "08123456",
+      "company_status": "active",
+      "company_type": "ltd",
+      "address": {
+        "locality": "Bristol",
+        "postal_code": "X1 1XX"
+      },
+      "address_snippet": "2 Harbour Road, Bristol"
+    }
+  ]
+}

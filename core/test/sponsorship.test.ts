@@ -73,7 +73,12 @@ async function run(
   t: import("node:test").TestContext,
   specs: Spec[],
   sponsorship: Sponsorship | null,
-  opts: { employers?: { company: string; town: string }[]; env?: Record<string, string> } = {},
+  opts: {
+    employers?: { company: string; town: string }[];
+    env?: Record<string, string>;
+    /** The job seeker's own Companies House key, set before the employers are matched. */
+    key?: string;
+  } = {},
 ) {
   const dataDir = tempDir(t);
   const profile = JSON.parse(readFileSync(judgment("setup-profile"), "utf8"));
@@ -81,6 +86,13 @@ async function run(
   const p = await runCli(["profile", "put", "--input", "-"], { dataDir, input: profile });
   assert.equal(p.code, 0, p.stdout);
   assert.equal((await runCli(["preferences", "init"], { dataDir })).code, 0);
+  if (opts.key !== undefined) {
+    const k = await runCli(["profile", "put", "--section", "companies_house_key", "--input", "-"], {
+      dataDir,
+      input: JSON.stringify(opts.key),
+    });
+    assert.equal(k.code, 0, k.stdout);
+  }
   for (const e of opts.employers ?? []) {
     const m = await runCli(["employer", "match", "--input", "-"], {
       dataDir,
@@ -165,6 +177,38 @@ test("likely only when the register, the SOC code and the pay all pass", async (
   assert.equal(verdict.effect, null);
   assert.deepEqual(screen.flags, []);
   assert.deepEqual(screen.badges, []);
+});
+
+test("a fuzzy employer match is unknown without a Companies House key, likely once verified", async (t) => {
+  const ORBITAL = { company: "Orbital Dynamic Ltd", town: "Cambridge" };
+  const job = {
+    n: 1,
+    company: "Orbital Dynamic Ltd",
+    title: "Senior Backend Engineer",
+    location: "Cambridge",
+    salary: "£70,000 - £85,000 per year",
+  };
+  // No key: the near match doesn't count, though the role and pay both pass.
+  const plain = await run(t, [job], NO_FLAGS, { employers: [ORBITAL] });
+  const a = await checksOf(plain.dataDir, plain.ids[0] as string);
+  assert.equal(a.by("role")?.status, "pass");
+  assert.equal(a.by("pay")?.status, "pass");
+  assert.equal(a.by("employer")?.status, "warn");
+  assert.equal(a.verdict.result, "unknown");
+
+  // With the key, Companies House verifies the same match and the verdict is likely.
+  const keyed = await run(t, [job], NO_FLAGS, { employers: [ORBITAL], key: "test-key-not-real" });
+  const b = await checksOf(keyed.dataDir, keyed.ids[0] as string);
+  assert.equal(b.by("employer")?.status, "pass");
+  assert.equal(b.verdict.result, "likely");
+
+  // A near match whose town doesn't agree is unknown even with the key.
+  const wrong = await run(t, [job], NO_FLAGS, {
+    employers: [{ company: "Orbital Dynamic Ltd", town: "Leeds" }],
+    key: "test-key-not-real",
+  });
+  const c = await checksOf(wrong.dataDir, wrong.ids[0] as string);
+  assert.equal(c.verdict.result, "unknown");
 });
 
 test("every check is a Decision tree node with its threshold, result and citation", async (t) => {

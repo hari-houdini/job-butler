@@ -97,6 +97,12 @@ export function learnableDomain(from: string): string | undefined {
   return domain;
 }
 
+/** The domains a message can teach, in the order step 3 tries them: the sender's, then Reply-To's. */
+export function learnableDomains(m: { from: string; reply_to?: string }): string[] {
+  const domains = [learnableDomain(m.from), learnableDomain(m.reply_to ?? "")];
+  return [...new Set(domains.filter((d): d is string => d !== undefined))];
+}
+
 export const CLASSIFICATIONS = [
   "acknowledgement",
   "rejection",
@@ -145,6 +151,8 @@ export interface ClassifiedMessage {
   message_id: string;
   thread_id: string;
   from: string;
+  /** The Reply-To header, when the message sets one: step 3 tries it after the sender. */
+  reply_to?: string;
   subject: string;
   received_at: string;
   classification: Classification;
@@ -161,6 +169,7 @@ export interface MessageRef {
   id: string;
   thread_id: string;
   from: string;
+  reply_to?: string;
   subject: string;
   received_at: string;
   classification: string;
@@ -380,17 +389,28 @@ function sameEmployer(a: LadderContext["apps"][number], b: LadderContext["apps"]
   );
 }
 
-/** Step 3: the sender's domain is one Track learned for an open Application or its Employer. */
+/**
+ * Step 3's match: the first of the message's domains (sender, then Reply-To) that an open
+ * Application or its Employer has learned, with those Applications. Undefined when none.
+ */
+function learnedMailMatch(
+  m: ClassifiedMessage,
+  ctx: LadderContext,
+): { domain: string; apps: StoredRecord[] } | undefined {
+  for (const domain of learnableDomains(m)) {
+    const apps = ctx.apps
+      .filter((e) => isOpen(e.app) && mailDomains(e).some((d) => underDomain(domain, [d])))
+      .map((e) => e.app);
+    if (apps.length > 0) return { domain, apps };
+  }
+  return undefined;
+}
+
+/** Step 3: the sender's domain, else the Reply-To domain, is one Track learned for an open Application or its Employer. */
 const byMailDomain: LadderStep = {
   step: 3,
   name: "mail domain",
-  find(m, ctx) {
-    const domain = learnableDomain(m.from);
-    if (domain === undefined) return [];
-    return ctx.apps
-      .filter((e) => isOpen(e.app) && mailDomains(e).some((d) => underDomain(domain, [d])))
-      .map((e) => e.app);
-  },
+  find: (m, ctx) => learnedMailMatch(m, ctx)?.apps ?? [],
 };
 
 const LEGAL = new Set(["inc", "ltd", "limited", "llc", "plc", "corp", "corporation", "gmbh", "co"]);
@@ -483,11 +503,16 @@ export type Match =
   | { kind: "unmatched" };
 
 /** One line on how a step found the Application, for the digest. */
-function stepReason(step: LadderStep, m: ClassifiedMessage, app: StoredRecord): string {
+function stepReason(
+  step: LadderStep,
+  m: ClassifiedMessage,
+  app: StoredRecord,
+  ctx: LadderContext,
+): string {
   const company = String(app.company);
   switch (step.step) {
     case 3:
-      return `mail from ${senderDomain(m.from)}, a mail domain learned for ${company}`;
+      return `mail from ${learnedMailMatch(m, ctx)?.domain ?? senderDomain(m.from)}, a mail domain learned for ${company}`;
     case 4:
       return `the sender or signature names ${company}`;
     case 5:
@@ -522,8 +547,8 @@ export function matchMessage(message: ClassifiedMessage, ctx: LadderContext): Ma
           : {
               note:
                 step.step === 3
-                  ? `${stepReason(step, message, app)}, but ${String(app.company)} has other open Applications`
-                  : stepReason(step, message, app),
+                  ? `${stepReason(step, message, app, ctx)}, but ${String(app.company)} has other open Applications`
+                  : stepReason(step, message, app, ctx),
             }),
       };
     }
@@ -543,7 +568,7 @@ export function matchMessage(message: ClassifiedMessage, ctx: LadderContext): Ma
     .sort((a, b) => score(b) - score(a) || String(a.app.id).localeCompare(String(b.app.id)))
     .map((x) => ({
       app: x.app,
-      reason: x.steps.map((s) => stepReason(s, message, x.app)).join("; "),
+      reason: x.steps.map((s) => stepReason(s, message, x.app, ctx)).join("; "),
     }));
   return { kind: "ambiguous", candidates };
 }
@@ -596,7 +621,7 @@ function parseMessages(input: unknown): ClassifiedMessage[] {
     if (m.source !== undefined && m.source !== "email" && m.source !== "calendar") {
       problems.push(`${at}.source must be "email" or "calendar"`);
     }
-    for (const key of ["company", "role", "signature"]) {
+    for (const key of ["reply_to", "company", "role", "signature"]) {
       if (m[key] !== undefined && m[key] !== null && typeof m[key] !== "string") {
         problems.push(`${at}.${key} must be text`);
       }
@@ -640,6 +665,7 @@ function messageRef(message: ClassifiedMessage, matchedBy: string): MessageRef {
     received_at: message.received_at,
     classification: message.classification,
     matched_by: matchedBy,
+    ...(message.reply_to ? { reply_to: message.reply_to } : {}),
     ...(message.source === "calendar" ? { source: "calendar" as const } : {}),
   };
 }
@@ -852,33 +878,33 @@ const notUnmatched = (id: string) =>
     message_id: id,
   });
 
-/** Add what an approved or assigned message teaches: its thread and the sender's domain. */
+/** Add what an approved or assigned message teaches: its thread and its sender's and Reply-To domains. */
 export async function learnFrom(
   w: StoreWriter,
   dataDir: string,
   app: StoredRecord,
-  ref: Pick<MessageRef, "thread_id" | "from" | "source">,
+  ref: Pick<MessageRef, "thread_id" | "from" | "reply_to" | "source">,
 ): Promise<StoredRecord> {
   const key = ref.source === "calendar" ? "calendar_events" : "gmail_threads";
   const ids = (app[key] as string[] | undefined) ?? [];
-  const domain = learnableDomain(ref.from);
+  const learned = learnableDomains(ref);
   const domains = (app.mail_domains as string[] | undefined) ?? [];
+  const added = learned.filter((d) => !domains.includes(d));
   const next = {
     ...app,
     [key]: ids.includes(ref.thread_id) ? ids : [...ids, ref.thread_id],
-    ...(domain !== undefined && !domains.includes(domain)
-      ? { mail_domains: [...domains, domain] }
-      : {}),
+    ...(added.length > 0 ? { mail_domains: [...domains, ...added] } : {}),
   };
-  if (domain !== undefined && typeof app.listing === "string") {
+  if (learned.length > 0 && typeof app.listing === "string") {
     const listing = await getRecord(dataDir, "listing", app.listing);
     const employerId = listing?.employer ?? app.employer;
     const employer =
       typeof employerId === "string" ? await getRecord(dataDir, "employer", employerId) : undefined;
     if (employer !== undefined) {
       const known = (employer.mail_domains as string[] | undefined) ?? [];
-      if (!known.includes(domain)) {
-        await w.put("employer", employer.id, { ...employer, mail_domains: [...known, domain] });
+      const fresh = learned.filter((d) => !known.includes(d));
+      if (fresh.length > 0) {
+        await w.put("employer", employer.id, { ...employer, mail_domains: [...known, ...fresh] });
       }
     }
   }
@@ -930,6 +956,7 @@ export async function trackAssign(dataDir: string, args: string[]) {
       await learnFrom(w, dataDir, app, {
         thread_id: message.thread_id,
         from: message.from,
+        ...(message.reply_to ? { reply_to: message.reply_to } : {}),
         source: message.source,
       });
     }
