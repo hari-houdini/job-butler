@@ -38,6 +38,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
   - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook (`hook session-start`) exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
+  - `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CONFIG_DIR`: Claude Code's login settings, read only by the login-type check (`claudeCodeVar()`, see "Login type check").
   - `CLAUDE_ENV_FILE` (set by Claude Code; read with `claudeEnvFile()`) and `JOB_BUTLER_SESSION_PID` (read with `sessionPidOverride()`): read in `env.ts` like the rest.
   - Tests read the host environment only through `hostEnv()` and `hostVar()` in `core/test/harness.ts`, the one test file the Biome `noProcessEnv` override allows.
 
@@ -267,6 +268,19 @@ Both commands are destructive: they're in `GATED_COMMANDS`, so the hook runs the
 - **Replies the buttons copy:** `pick <letter>`, `pick a, b`, `why <letter|application id>`, `approve <n>`, `restore <company> <title>`. A new reply must also be in the terminal digest.
 - **Colour key:** the `classDef` list in `decision-tree.ts`; the legend and the checks list use the same colours and the terminal marks (✓ pass, ! warn, ✗ fail, · not reached).
 - **Vendored Mermaid:** `core/vendor/mermaid/mermaid.min.js`, Mermaid **10.9.1** (jsDelivr `npm/mermaid@10.9.1/dist/mermaid.min.js`), MIT licence in `core/vendor/mermaid/LICENSE`. Excluded from Biome in `biome.json` (`!core/vendor`). To upgrade, replace both files, update this version, and re-run the tests. Never load it from a CDN.
+
+## Login type check (set by #60, code in `core/src/login-type.ts`)
+
+- **Purpose:** decision #12 (v1 needs a claude.ai subscription login). `status` reports `login: {type, method}` so a missing connector is explained. It is advisory: `detectLoginType()` never throws, `status` always succeeds, and nothing blocks a run or a hook. A failure to detect is `unknown`.
+- **Method (no network, no token read or printed; only the presence of a key or item is checked), first match wins:**
+  1. `CLAUDE_CODE_USE_BEDROCK` / `CLAUDE_CODE_USE_VERTEX` set (`1` or `true`) → `bedrock` / `vertex`.
+  2. `ANTHROPIC_API_KEY` set → `api-key`. An API key is checked before a subscription login because Claude Code prefers it when set.
+  3. `CLAUDE_CODE_OAUTH_TOKEN` set → `setup-token`.
+  4. `<config dir>/.credentials.json` exists and has a `claudeAiOauth` object → `claude.ai`. The config dir is `CLAUDE_CONFIG_DIR`, else `~/.claude`.
+  5. macOS only, and only when `CLAUDE_CONFIG_DIR` is unset: `security find-generic-password -s "Claude Code-credentials"` exits 0 → `claude.ai`. The exit status is the only thing read.
+  6. Otherwise → `unknown`. A credentials file that exists but can't be read or parsed is also `unknown`, not an error.
+- **Tests:** `core/test/login-type.test.ts` drives `status`. Fixtures: `core/test/fixtures/login/claude-ai/.credentials.json` (fake tokens) for the `claude.ai` case; the other cases are environment variables. `CLAUDE_CONFIG_DIR` is pinned per test so the host's login never leaks into a result.
+- **Not verified:** the `.credentials.json` shape and the keychain service name come from Claude Code's behaviour as understood, and the file path has no live check on macOS (where the keychain item takes precedence on this host). Re-check both if Claude Code changes its credential storage.
 
 ## Network
 
