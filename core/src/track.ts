@@ -18,6 +18,13 @@ import { atsPostingId } from "./dedupe.ts";
 import { now, timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import {
+  addToOffers,
+  type ExternalBackfill,
+  type ExternalOffer,
+  type ExternalSettings,
+  externalSettings,
+} from "./external.ts";
+import {
   getRecord,
   listRecords,
   type StoredRecord,
@@ -196,6 +203,9 @@ export interface SyncFields {
   unmatched: Unmatched[];
   /** When the LinkedIn alert reader last ran (#51); Track's `last_synced_at` is not touched. */
   alerts_synced_at?: string | null;
+  /** External applications (#50): what Track offers to track, and whether the backfill ran. */
+  external_offers?: ExternalOffer[];
+  external_backfill?: ExternalBackfill | null;
 }
 
 export type SyncRecord = StoredRecord & SyncFields;
@@ -231,13 +241,30 @@ export function gmailDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10).replaceAll("-", "/");
 }
 
+/** The backfill reads back over the Preferences window (months by calendar month). */
+function backfillFrom(months: number): number {
+  const start = new Date(now().getTime());
+  start.setUTCMonth(start.getUTCMonth() - months);
+  return start.getTime();
+}
+
+/** The one-off External backfill is due: the opt-in is on and it has never run. */
+const backfillDue = (settings: ExternalSettings, sync: SyncRecord | undefined) =>
+  settings.enabled && (sync?.external_backfill ?? null) === null;
+
 export async function trackWindow(dataDir: string) {
   const sync = await readSync(dataDir);
+  const settings = await externalSettings(dataDir);
   const last = sync?.last_synced_at ? Date.parse(sync.last_synced_at) : undefined;
-  const from =
+  let from =
     last !== undefined ? last - OVERLAP_DAYS * DAY_MS : now().getTime() - FIRST_SYNC_DAYS * DAY_MS;
+  const due = backfillDue(settings, sync);
+  if (due) {
+    from = Math.min(from, backfillFrom(settings.backfill_months));
+  }
   const after = gmailDate(from);
   return {
+    backfill: { pending: due, months: settings.backfill_months },
     connector: CONNECTOR,
     last_synced_at: sync?.last_synced_at ?? null,
     after,
@@ -626,9 +653,23 @@ export async function trackRecord(dataDir: string, input: unknown) {
     const seen = new Set([...fields.processed_ids, ...fields.dismissed_ids]);
     const ctx = await ladderContext(dataDir);
     const proposals = [...fields.proposals];
-    const unmatched = [...fields.unmatched];
+    let unmatched = [...fields.unmatched];
     const processed = [...fields.processed_ids];
-    let next = fields.next_n;
+    const counter = { n: fields.next_n, at, backfill: false };
+    // External applications (#50): offer unmatched confirmations when the job seeker opted in.
+    const settings = await externalSettings(dataDir);
+    const backfill = backfillDue(settings, sync);
+    let offers = [...(fields.external_offers ?? [])];
+    if (backfill) {
+      // Mail read before the opt-in is part of the one backfill.
+      counter.backfill = true;
+      unmatched = unmatched.filter((u) => {
+        const added =
+          u.candidates.length === 0 ? addToOffers(offers, u.message, counter) : undefined;
+        if (added !== undefined) offers = added;
+        return added === undefined;
+      });
+    }
     const result = {
       new: 0,
       skipped_seen: 0,
@@ -647,6 +688,14 @@ export async function trackRecord(dataDir: string, input: unknown) {
       result.new++;
       const match = matchMessage(message, ctx);
       if (match.kind !== "matched") {
+        const added =
+          settings.enabled && match.kind === "unmatched"
+            ? addToOffers(offers, message, counter)
+            : undefined;
+        if (added !== undefined) {
+          offers = added;
+          continue;
+        }
         result.unmatched++;
         const ranked = match.kind === "ambiguous" ? match.candidates : [];
         unmatched.push({
@@ -667,7 +716,7 @@ export async function trackRecord(dataDir: string, input: unknown) {
         continue;
       }
       proposals.push({
-        n: next,
+        n: counter.n,
         application_id: match.app.id,
         from: current,
         to: rule.to,
@@ -679,7 +728,7 @@ export async function trackRecord(dataDir: string, input: unknown) {
         proposed_at: at,
         decided_at: null,
       });
-      result.proposed.push(next++);
+      result.proposed.push(counter.n++);
     }
     await w.put("sync", CONNECTOR, {
       ...fields,
@@ -687,7 +736,17 @@ export async function trackRecord(dataDir: string, input: unknown) {
       processed_ids: processed,
       proposals,
       unmatched,
-      next_n: next,
+      next_n: counter.n,
+      external_offers: offers,
+      ...(backfill
+        ? {
+            external_backfill: {
+              ran_at: at,
+              months: settings.backfill_months,
+              after: gmailDate(backfillFrom(settings.backfill_months)),
+            },
+          }
+        : {}),
     });
     return { ...(await trackDigest(dataDir)), ...result };
   });
@@ -767,12 +826,23 @@ export async function trackDismiss(dataDir: string, args: string[]) {
       if (p.message) dismissed.push(p.message.id);
       return { ...p, state: "dismissed" as const, decided_at: at };
     });
+    // An External application offer is dismissed the same way: its mail is never raised again.
+    const offers = (fields.external_offers ?? []).map((o) => {
+      if (!wanted.includes(o.n) || o.state !== "pending") return o;
+      dismissed.push(...o.messages.map((m) => m.message_id));
+      return { ...o, state: "dismissed" as const, decided_at: at };
+    });
     for (const n of wanted) {
-      if (!proposals.some((p) => p.n === n && p.state === "dismissed")) {
+      if (![...proposals, ...offers].some((p) => p.n === n && p.state === "dismissed")) {
         throw new CoreError("NOT_FOUND", `There's no pending proposal ${n} to dismiss.`, { n });
       }
     }
-    await w.put("sync", CONNECTOR, { ...fields, proposals, dismissed_ids: dismissed });
+    await w.put("sync", CONNECTOR, {
+      ...fields,
+      proposals,
+      dismissed_ids: dismissed,
+      external_offers: offers,
+    });
     return { dismissed: wanted, ...(await trackDigest(dataDir)) };
   });
 }
@@ -891,13 +961,20 @@ export async function trackDismissMail(dataDir: string, args: string[]) {
 }
 
 export const REPLIES = [
-  { reply: "approve <n>[, <n>]", does: "approve those Status changes (asks for your Approval)" },
+  {
+    reply: "approve <n>[, <n>]",
+    does: "approve those Status changes, or track an offered External application (asks for your Approval)",
+  },
   { reply: "dismiss <n>", does: "drop a proposal and don't raise that message again" },
   {
     reply: "assign <message-id> <application-id>",
     does: "place unmatched mail on one Application",
   },
   { reply: "dismiss-mail <message-id>", does: "drop unmatched mail and never raise it again" },
+  {
+    reply: "link <listing-id> <application-id>",
+    does: "mark a Listing as already applied to through an External application",
+  },
   { reply: "help", does: "list these replies" },
 ];
 
@@ -964,6 +1041,40 @@ export async function trackDigest(dataDir: string) {
       );
     }
   }
+  const offers = (sync?.external_offers ?? []).filter((o) => o.state === "pending");
+  const offerItems = offers.map((o) => ({
+    n: o.n,
+    company: o.company,
+    title: o.title,
+    applied_at: o.applied_at,
+    backfill: o.backfill,
+    messages: o.messages,
+    reply: `approve ${o.n}`,
+  }));
+  const offerLine = (o: ExternalOffer) => {
+    lines.push(
+      `  ${o.n}) ${o.company} · ${o.title}: applied ${o.applied_at.slice(0, 10)}, ` +
+        `${o.messages.length} message${o.messages.length === 1 ? "" : "s"}`,
+    );
+    const first = [...o.messages].sort((a, b) => a.received_at.localeCompare(b.received_at))[0];
+    if (first) lines.push(`       Earliest: "${first.subject}" from ${first.from}.`);
+  };
+  const fresh = offers.filter((o) => !o.backfill);
+  const back = offers.filter((o) => o.backfill);
+  if (fresh.length > 0) {
+    lines.push(
+      `EXTERNAL APPLICATIONS (${fresh.length})  applied outside Job Butler; approve <n> to track as External application`,
+    );
+    for (const o of fresh) offerLine(o);
+  }
+  if (back.length > 0) {
+    lines.push(
+      `EXTERNAL APPLICATIONS FROM YOUR BACKFILL (${back.length})  one look back over your mail; approve <n> to track as External application`,
+    );
+    for (const o of back) offerLine(o);
+  }
+  const bulk = back.length > 0 ? `approve ${back.map((o) => o.n).join(", ")}` : null;
+  if (bulk) lines.push(`Bulk approve the backfill: ${bulk}`);
   const sure = pending.filter((p) => p.confidence === "sure").map((p) => p.n);
   const suggested = sure.length > 0 ? `approve ${sure.join(", ")}` : null;
   if (suggested) lines.push(`Pre-selected: ${suggested}`);
@@ -973,6 +1084,8 @@ export async function trackDigest(dataDir: string) {
     unmatched: unmatched.length,
     unmatched_items: unmatchedItems,
     suggested_reply: suggested,
+    external_offers: offerItems,
+    external_bulk_reply: bulk,
     text: lines.join("\n"),
     replies: REPLIES,
   };

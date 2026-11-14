@@ -254,7 +254,13 @@ test("Submitted, Picked and External applications count; withdrawn picks and old
   ]);
   await application(
     dataDir,
-    { origin: "external", status: "submitted", applied_at: "2026-01-06T10:00:00.000Z", ...emp },
+    {
+      origin: "external",
+      status: "submitted",
+      applied_at: "2026-01-06T10:00:00.000Z",
+      title: "Data Engineer", // a different role: the same role would be marked already applied (#50)
+      ...emp,
+    },
     [],
   );
   // not counted: a pick withdrawn before Submit, and an application older than the window

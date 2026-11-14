@@ -11,9 +11,10 @@ import { promisify } from "node:util";
 import { type EventLogEntry, STATUSES, statusLabel } from "./application.ts";
 import { nodeId, renderTree } from "./decision-tree.ts";
 import { openerCommand, timestamp } from "./env.ts";
+import type { ExternalOffer } from "./external.ts";
 import { rankShortlist } from "./screen.ts";
 import type { Check } from "./screen-check.ts";
-import { listRecords, type StoredRecord, writeThenReplace } from "./store.ts";
+import { getRecord, listRecords, type StoredRecord, writeThenReplace } from "./store.ts";
 
 export const VIEW_DIR = "view";
 export const VIEW_FILE = `${VIEW_DIR}/index.html`;
@@ -66,15 +67,21 @@ interface Data {
   shortlist: Awaited<ReturnType<typeof rankShortlist>>;
   failedSources: { company: string; ats: string; message: string }[];
   lastDiscover: string | null;
+  /** External applications Track offered and the job seeker hasn't answered (#50). */
+  offers: ExternalOffer[];
 }
 
 async function load(dataDir: string): Promise<Data> {
-  const [listings, apps, runs, shortlist] = await Promise.all([
+  const [listings, apps, runs, shortlist, sync] = await Promise.all([
     listRecords(dataDir, "listing"),
     listRecords(dataDir, "application"),
     listRecords(dataDir, "discover-run"),
     rankShortlist(dataDir),
+    getRecord(dataDir, "sync", "gmail"),
   ]);
+  const offers = ((sync?.external_offers as ExternalOffer[] | undefined) ?? []).filter(
+    (o) => o.state === "pending",
+  );
   const appByListing = new Map(
     apps.filter((a) => typeof a.listing === "string").map((a) => [a.listing as string, a]),
   );
@@ -100,6 +107,7 @@ async function load(dataDir: string): Promise<Data> {
     appByListing,
     shortlist,
     failedSources,
+    offers,
     lastDiscover: typeof last?.finished_at === "string" ? last.finished_at : null,
   };
 }
@@ -165,6 +173,25 @@ function needsTab(d: Data): string {
         `${n}. Digest change`,
         `${who(a)}<div class="sub">${esc(statusLabel(String(a.status)))} → ${esc(statusLabel(String(change.to)))}: ${esc(change.reason)}</div>`,
         copyButton(`approve ${n}`, `Copy: approve ${n}`, true),
+      ),
+    );
+  }
+  if (d.offers.length > 0) {
+    n += 1;
+    const items = d.offers
+      .map(
+        (o) =>
+          `<div class="pick">${o.n}) <b>${esc(o.company)}</b> · ${esc(o.title)}${o.backfill ? ' <span class="chip">backfill</span>' : ""}` +
+          `<div class="sub">Applied ${esc(o.applied_at.slice(0, 10))} · ${o.messages.length} message${o.messages.length === 1 ? "" : "s"} in your mail</div> ` +
+          `${copyButton(`approve ${o.n}`)}</div>`,
+      )
+      .join("");
+    const all = d.offers.map((o) => o.n).join(", ");
+    rows.push(
+      row(
+        `${n}. External application`,
+        `<b>${d.offers.length} job${d.offers.length === 1 ? "" : "s"}</b> you applied to outside Job Butler. Track as External application?${items}`,
+        d.offers.length > 1 ? copyButton(`approve ${all}`, "Copy: approve all", true) : "",
       ),
     );
   }
