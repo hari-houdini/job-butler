@@ -50,6 +50,7 @@ async function put(dataDir: string, type: string, id: string, record: unknown) {
 
 async function setUp(dataDir: string, listings = LISTINGS(), prefs?: [string, string][]) {
   const profile = JSON.parse(readFileSync(judgment("setup-profile"), "utf8"));
+  profile.sponsorship = { needed: false }; // these tests are about limits, not Sponsorship
   assert.equal(
     (await runCli(["profile", "put", "--input", "-"], { dataDir, input: profile })).code,
     0,
