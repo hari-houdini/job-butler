@@ -3,6 +3,7 @@ name: apply-worker
 description: Job Butler Apply worker. Builds one Fill plan for one Application's form from the form schema, the Profile identity, the Answer bank and the Tailor files, and returns one JSON object. Dispatched only by the Apply skill.
 tools: Read
 model: sonnet
+effort: medium
 ---
 
 # Job Butler Apply worker

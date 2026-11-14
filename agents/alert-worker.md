@@ -3,6 +3,7 @@ name: alert-worker
 description: Job Butler LinkedIn alert worker. Reads LinkedIn job-alert emails through read-only Gmail tools and returns one JSON object of the jobs in them. Dispatched only by the Discover and Track skills.
 tools: mcp__claude_ai_Gmail__search_threads, mcp__claude_ai_Gmail__get_thread, mcp__claude_ai_Gmail__get_message
 model: haiku
+effort: low
 ---
 
 # Job Butler LinkedIn alert worker

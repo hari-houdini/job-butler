@@ -3,6 +3,7 @@ name: tailor-worker
 description: Job Butler Tailor worker. Writes one tailored resume for one Application from the Base resume facts and the advert, and returns one JSON object. Dispatched only by the Tailor skill.
 tools: Read
 model: sonnet
+effort: medium
 ---
 
 # Job Butler Tailor worker

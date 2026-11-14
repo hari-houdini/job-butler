@@ -33,6 +33,7 @@ import { preToolUse, sessionStart } from "./hook.ts";
 import { addLinkedInJobs, confirmLinkedInMatch, matchLinkedIn } from "./linkedin.ts";
 import { endRun, readRunLock, startRun } from "./lock.ts";
 import { httpGet } from "./net.ts";
+import { notifyVerdict, pipelineDigest, routeReply, scheduleTick } from "./orchestrate.ts";
 import { initPreferences, loadPreferences, setPreference, settingPaths } from "./preferences.ts";
 import { assertProfileComplete, checkProfile, putProfile, readProfile } from "./profile.ts";
 import { restoreListing, showExcluded } from "./restore.ts";
@@ -189,6 +190,38 @@ export const commands: Record<string, Command> = {
       if (id === undefined) throw usageError("run end: --run <run_id> is required");
       return { released: await endRun(dataDir, id) };
     },
+  },
+
+  "run digest": {
+    usage: "run digest",
+    summary:
+      'The orchestrator\'s "what needs you" digest: Track changes awaiting Approval, the Shortlist, ' +
+      "Applications ready to apply, paused forms and failed sources, with every reply it takes.",
+    run: async ({ dataDir }) => ({ ...(await pipelineDigest(dataDir)) }),
+  },
+
+  "run reply": {
+    usage: "run reply <the job seeker's reply>",
+    summary:
+      "Route one reply to the digest (why, pick, approve, show excluded, restore, help, link, ...) " +
+      "to the core commands it means, and the Checkpoint to approve first. Writes nothing.",
+    run: async ({ dataDir, args }) => ({ ...(await routeReply(dataDir, args.join(" "))) }),
+  },
+
+  "run notify": {
+    usage: "run notify",
+    summary:
+      "Verdict for a desktop notification: notify is true only when something needs the job " +
+      "seeker and Preferences allow it. The skill sends it.",
+    run: async ({ dataDir }) => ({ ...(await notifyVerdict(dataDir)) }),
+  },
+
+  "schedule tick": {
+    usage: "schedule tick",
+    summary:
+      "One turn of the opt-in schedule: which tasks are due, taking the run lock. A held lock " +
+      'skips the turn and logs "skipped: another session was writing".',
+    run: async ({ dataDir }) => ({ ...(await scheduleTick(dataDir)) }),
   },
 
   "run status": {
