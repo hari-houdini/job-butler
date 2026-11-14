@@ -1,0 +1,20 @@
+name: check
+
+# The same gate as `npm run check` (typecheck, lint, conflict-marker check, tests), run on
+# every push and pull request. The real-browser Apply tests need Chromium, installed below.
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run check
