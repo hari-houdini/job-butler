@@ -32,6 +32,7 @@ Your prompt holds a Gmail query (`after:YYYY/MM/DD`) and `processed_ids`, the me
    An ATS sender domain (greenhouse.io, ashbyhq.com, myworkday.com, calendly.com, goodtime.io) is not an identifier; the core treats it as a hint at most.
 
 5. Also copy what the body shows for the later ladder steps, leaving out what it lacks: `company` (the employer the message names), `role` (the job title it names) and `signature` (the sender's signature block, as text).
+   For an `acknowledgement` or any later step, always fill `company` and `role` when the message shows them: Track offers to track an application made outside Job Butler only from mail that names both. When your prompt's query reaches back months (the one-off backfill), read it the same way.
 6. Calendar: run `list_events` (or `search_events` with the company name or "interview") over the window, and `get_event` for detail. Return each job-related event as a message with `"source": "calendar"`, `message_id` `cal:<event id>`, `thread_id` the event ID, `from` the organizer ("Name <address>"), `subject` the event title and `received_at` its start; `classification` may be left out (the core treats every event as an interview invite).
 
 Every message you return ends the step with its `classification` and its `ats` object filled from what the message shows.

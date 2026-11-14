@@ -31,6 +31,7 @@ export const CHECKPOINT_COMMANDS: Record<string, Checkpoint> = {
   "application pick": "shortlist-pick",
   "application status": "digest-status",
   "application submitted": "handover",
+  "application external": "digest-status",
 };
 
 export type GrantKind = "standing" | "sensitive" | "destructive";

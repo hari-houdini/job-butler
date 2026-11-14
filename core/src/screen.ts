@@ -22,6 +22,7 @@ import {
 import { treePath, writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
+import { type AppliedMark, externalMark } from "./external.ts";
 import { fitStep } from "./fit.ts";
 import { ghostStep } from "./ghost.ts";
 import { readRunLock } from "./lock.ts";
@@ -310,9 +311,16 @@ function letter(i: number): string {
 export async function rankShortlist(dataDir: string): Promise<ShortlistItem[]> {
   const listings = await listRecords(dataDir, "listing");
   const picked = await applicationsByListing(dataDir);
+  const applied = await alreadyApplied(dataDir, listings);
   const on = listings.filter((l) => {
     const s = screenOf(l);
-    return s?.outcome === "shortlist" && l.gone !== true && !picked.has(l.id) && !l.application_id;
+    return (
+      s?.outcome === "shortlist" &&
+      l.gone !== true &&
+      !picked.has(l.id) &&
+      !l.application_id &&
+      !applied.has(l.id)
+    );
   });
   const key = (l: StoredRecord) => screenOf(l) as ScreenResult;
   // Application limits (#42) are judged against today's Applications, not Screen's snapshot.
@@ -345,6 +353,28 @@ export async function rankShortlist(dataDir: string): Promise<ShortlistItem[]> {
     suggested: slots.get(l.id)?.suggested ?? false,
     group: slots.get(l.id)?.group ?? null,
   }));
+}
+
+/**
+ * Listings the job seeker already applied to as an External application (#50): the ones they
+ * linked, and any live External application's role at the same company. They stay off the
+ * Shortlist, marked "already applied (external)".
+ */
+async function alreadyApplied(
+  dataDir: string,
+  listings: StoredRecord[],
+): Promise<Map<string, AppliedMark>> {
+  const externals = (await listRecords(dataDir, "application")).filter(
+    (a) => a.origin === "external",
+  );
+  const out = new Map<string, AppliedMark>();
+  if (externals.length === 0) return out;
+  for (const l of listings) {
+    if (l.gone === true || typeof l.application_id === "string") continue;
+    const mark = externalMark(l, externals);
+    if (mark !== undefined) out.set(l.id, mark);
+  }
+  return out;
 }
 
 /** Each Listing's standing against its Application limit now (empty when Screen can't tell). */
@@ -388,6 +418,15 @@ export async function digest(dataDir: string) {
   const listings = await listRecords(dataDir, "listing");
   const excluded = listings.filter((l) => screenOf(l)?.outcome === "excluded").length;
   const pending = listings.filter(needsScreen).length;
+  const marks = await alreadyApplied(dataDir, listings);
+  const already = listings
+    .filter((l) => marks.has(l.id) && screenOf(l)?.outcome === "shortlist")
+    .map((l) => ({
+      id: l.id,
+      company: String(l.company),
+      title: String(l.title),
+      ...(marks.get(l.id) as AppliedMark),
+    }));
   const lines: string[] = [];
   lines.push(
     shortlist.length > 0
@@ -415,10 +454,20 @@ export async function digest(dataDir: string) {
         `suggested: ${picks.join(", ")}`,
     );
   }
+  for (const a of already) {
+    lines.push(`  [${a.label}] ${a.company} · ${a.title}, kept off the Shortlist`);
+  }
   lines.push(`EXCLUDED (${excluded})${excluded > 0 ? "  collapsed · reply: show excluded" : ""}`);
   if (pending > 0) lines.push(`${pending} Listing${pending === 1 ? "" : "s"} waiting for Screen`);
   lines.push(`Reply: ${REPLIES.map((r) => r.reply).join(" · ")}`);
-  return { shortlist, excluded, pending, text: lines.join("\n"), replies: REPLIES };
+  return {
+    shortlist,
+    already_applied: already,
+    excluded,
+    pending,
+    text: lines.join("\n"),
+    replies: REPLIES,
+  };
 }
 
 const MARK = { pass: "✓", warn: "!", fail: "✗", not_reached: "·" } as const;

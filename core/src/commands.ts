@@ -25,6 +25,7 @@ import {
 } from "./employer.ts";
 import { sessionId } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
+import { createExternal, linkExternal } from "./external-create.ts";
 import { preToolUse, sessionStart } from "./hook.ts";
 import { addLinkedInJobs, confirmLinkedInMatch, matchLinkedIn } from "./linkedin.ts";
 import { endRun, readRunLock, startRun } from "./lock.ts";
@@ -425,6 +426,23 @@ export const commands: Record<string, Command> = {
       "Digest-status Checkpoint: apply Track's proposal <n>. Runs only under an Approval " +
       "recorded with `approval record digest-status` for this exact command.",
     run: async ({ dataDir, args }) => ({ ...(await approveStatus(dataDir, args)) }),
+  },
+
+  "application external": {
+    usage: "application external <n>",
+    summary:
+      "Digest-status Checkpoint: create the External application Track offered as <n> (applied " +
+      "outside Job Butler). Runs only under an Approval recorded with `approval record " +
+      "digest-status` for this exact command.",
+    run: async ({ dataDir, args }) => ({ ...(await createExternal(dataDir, args)) }),
+  },
+
+  "application link-external": {
+    usage: "application link-external <listing-id> <application-id>",
+    summary:
+      "The job seeker's reply: this Listing is a job they already applied to as an External " +
+      "application. Screen marks it 'already applied (external)' and keeps it off the Shortlist.",
+    run: async ({ dataDir, args }) => ({ ...(await linkExternal(dataDir, args)) }),
   },
 
   "track window": {
