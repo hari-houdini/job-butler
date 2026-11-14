@@ -13,7 +13,6 @@
 import { join } from "node:path";
 import { type EventLogEntry, STATUSES, type Status, statusLabel } from "./application.ts";
 import { approvalUsedFor, normaliseAction } from "./approval.ts";
-import { writeTrees } from "./decision-tree.ts";
 import { now, timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import {
@@ -23,6 +22,7 @@ import {
   type ExternalSettings,
   externalSettings,
 } from "./external.ts";
+import { moveStatus } from "./status-move.ts";
 import {
   getRecord,
   listRecords,
@@ -825,10 +825,8 @@ export async function approveStatus(dataDir: string, args: string[]) {
       );
     }
     const at = timestamp();
-    const entry: EventLogEntry = {
-      at,
+    const moved = await moveStatus(dataDir, w, app, {
       stage: "track",
-      from: proposal.from,
       to,
       reason: proposal.reason,
       approval: {
@@ -838,11 +836,7 @@ export async function approveStatus(dataDir: string, args: string[]) {
         action,
       },
       ...(proposal.message ? { message: proposal.message } : {}),
-    };
-    const moved = await w.put("application", appId, {
-      ...app,
-      status: to,
-      event_log: [...((app.event_log as EventLogEntry[]) ?? []), entry],
+      at,
     });
     const updated = proposal.message ? await learnFrom(w, dataDir, moved, proposal.message) : moved;
     await w.put("sync", CONNECTOR, {
@@ -851,10 +845,6 @@ export async function approveStatus(dataDir: string, args: string[]) {
         p.n === n ? { ...p, state: "approved" as const, decided_at: at } : p,
       ),
     });
-    if (typeof updated.listing === "string") {
-      const listing = await getRecord(dataDir, "listing", updated.listing);
-      if (listing) await writeTrees(dataDir, [listing], [updated]);
-    }
-    return { application: updated, event: entry };
+    return { application: updated, event: (updated.event_log as EventLogEntry[]).at(-1) };
   });
 }
