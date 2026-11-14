@@ -162,7 +162,7 @@ test("approving an offer creates an External application at Submitted, with no L
     }),
   ]);
   const [res] = await approveAndRun(dataDir, ["application external 1"]);
-  assert.equal(res?.code, 0, res?.stdout);
+  assert.equal(res?.code, 0, res?.stdout ?? "");
   const apps = await applications(dataDir);
   assert.equal(apps.length, 1);
   const app = apps[0] as Rec;
@@ -407,7 +407,7 @@ async function externalAcme(dataDir: string, title = "Senior Backend Engineer") 
     }),
   ]);
   const [res] = await approveAndRun(dataDir, ["application external 1"]);
-  assert.equal(res?.code, 0, res?.stdout);
+  assert.equal(res?.code, 0, res?.stdout ?? "");
   return (await applications(dataDir))[0] as Rec;
 }
 

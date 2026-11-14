@@ -9,6 +9,7 @@
 //   usage:   {"ok": false, "error": {"code": "USAGE", ...}}      exit 2
 // Input (LLM judgments, records): JSON from --input <file>, or --input - for stdin.
 // See docs/agents/core-conventions.md.
+import "./node-guard.ts";
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { commands } from "./commands.ts";

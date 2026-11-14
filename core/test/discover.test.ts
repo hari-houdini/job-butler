@@ -250,7 +250,7 @@ test("Discover's writes need no Approval", async (t) => {
   const r = await hook();
 
   const out = r.json.hookSpecificOutput as Record<string, string> | undefined;
-  assert.notEqual(out?.permissionDecision, "deny", out?.permissionDecisionReason);
+  assert.notEqual(out?.permissionDecision, "deny", out?.permissionDecisionReason ?? "");
   await discover(dataDir);
   const approvals = await runCli(["approval", "list", "--session", "session-1"], { dataDir });
   assert.deepEqual(approvals.json.approvals, []);
