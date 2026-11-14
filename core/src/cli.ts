@@ -66,6 +66,9 @@ async function main(argv: string[]): Promise<{ result: Record<string, unknown>; 
       break;
     }
   }
+  if (name === undefined && positionals.length > 0) {
+    throw usageError(`unknown command "${positionals.join(" ")}"; run \`help\` for the list`);
+  }
   if (name === undefined || name === "help") {
     const list = Object.entries(commands).map(([n, c]) => ({
       name: n,

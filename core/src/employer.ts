@@ -213,11 +213,10 @@ function fuzzyCandidates(
   name: string,
   town: string,
 ): (Candidate & { group: RegisterGroup })[] {
-  const wanted = normaliseName(name);
   const found: (Candidate & { group: RegisterGroup })[] = [];
   for (const g of index.groups) {
     if (!townsAgree(g.town, town)) continue;
-    const score = Math.max(...g.names.map((n) => similarity(wanted, n)));
+    const score = Math.max(...g.names.map((n) => nameScore(name, n)));
     if (score >= FUZZY_THRESHOLD) {
       found.push({
         key: g.key,
@@ -340,6 +339,14 @@ async function detectAgency(
 }
 
 // --- Employer records --------------------------------------------------------------------
+
+/**
+ * How alike a Listing's company and a register name are: the score the fuzzy step thresholds,
+ * and the one `employer calibrate` measures. Both names are normalised first.
+ */
+export function nameScore(company: string, registerName: string): number {
+  return similarity(normaliseName(company), normaliseName(registerName));
+}
 
 function slug(s: string): string {
   return s.replace(/ /g, "-");

@@ -108,3 +108,48 @@ test("calibration needs no pipeline records and writes nothing", async (t) => {
   assert.equal(existsSync(join(dataDir, "pipeline")), false, "no pipeline directory is created");
   assert.equal(existsSync(join(dataDir, "employer")), false);
 });
+
+test("with towns on the pairs, a name match in another town is not a match", async (t) => {
+  const dataDir = tempDir(t);
+  // Same name, different towns: the matcher's fuzzy step needs the town to agree too.
+  const pairs = [
+    { a: "Acme Analytics", b: "Acme Analytics", town_a: "London", town_b: "Leeds", same: false },
+    {
+      a: "Brightwave Consulting",
+      b: "Brightwave Consultancy",
+      town_a: "London",
+      town_b: "London",
+      same: true,
+    },
+    {
+      a: "Helix Health Partners",
+      b: "Helix Energy",
+      town_a: "Leeds",
+      town_b: "Leeds",
+      same: false,
+    },
+  ];
+  const townless = pairs.map(({ a, b, same }) => ({ a, b, same }));
+
+  const withTowns = (await calibrate(dataDir, { pairs })).json.rows as Any[];
+  const nameOnly = (await calibrate(dataDir, { pairs: townless })).json.rows as Any[];
+  const top = (rows: Any[]) => rows.find((row) => row.threshold === 0.99);
+
+  assert.equal(top(withTowns).false_positive, 0, "a different town is never a match");
+  assert.equal(top(nameOnly).false_positive, 1, "name-only scoring counts the identical name");
+});
+
+test("when no threshold finds a true match, the sample suggests none and says why", async (t) => {
+  const dataDir = tempDir(t);
+  const r = await calibrate(dataDir, {
+    pairs: [
+      { a: "Alpha Corp", b: "Quux Wibble", same: true },
+      { a: "Beta Group", b: "Zed Yyyy", same: true },
+      { a: "Gamma", b: "Kappa Ltd", same: false },
+      { a: "Delta", b: "Omicron", same: false },
+    ],
+  });
+  assert.equal(r.code, 0, r.stdout);
+  assert.equal(r.json.suggested_threshold, null);
+  assert.match(String(r.json.warning), /no threshold/);
+});

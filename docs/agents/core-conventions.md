@@ -282,6 +282,7 @@ Every fetch goes through `httpGet` in `core/src/net.ts`. A JSON POST goes throug
   - **LLM judgments:** JSON files in `core/test/fixtures/judgments/`, passed with `--input judgment("<name>")`. `setup-profile.json` is a complete Profile as setup would write it; tests that need a passing Stage gate write it with `profile put` and run `preferences init`.
   - **Browser:** pages in `core/test/fixtures/browser/`, served by `serveBrowserFixtures(t)` on 127.0.0.1.
   - **gh:** executable scripts in `core/test/fixtures/gh/`, selected with `env: { JOB_BUTLER_GH }`.
+  - **Calibration:** `core/test/fixtures/calibration/` holds synthetic labelled name pairs for the `employer calibrate` tests. They are not a real sample.
 - Fault injection: check `fault("<name>")` from `env.ts` at the point to interrupt; tests set `JOB_BUTLER_FAULT`.
 
 ## Sponsor register and Employer matching (set by #40)
@@ -293,6 +294,7 @@ Code: `core/src/sponsor.ts` (the register copy, CSV parsing, name normalising) a
 - `sponsor refresh`: downloads the register unless a copy was already downloaded today (UTC), then re-checks every cached Employer. Returns `refreshed`, `csv_url`, `organisations`, `as_of`, `stale`, `stale_note` and `rechecked: {checked, changed: [{id, before, after}]}` (null when nothing was downloaded). `sponsor status` reports freshness only.
 - `employer match --input` `{"company", "town"?, "description"?, "end_client"?, "judgment"?: {"choice": "<candidate key>" | null}}`: refreshes the register when due, matches, caches. Returns `employer` (the record), `cached`, `as_of`, `stale`, `stale_note`, `companies_house` (`not_set`, `used` or `unavailable`) and `judgment_needed` (null, or `{question, employer, town, candidates}`).
 - `employer confirm <id>`, `employer correct <id> --input {"organisation_name", "town"?} | {"none": true}`, `employer end-client <id> --input {"end_client"}`.
+- `employer calibrate --input {"pairs": [{"a", "b", "same", "town_a"?, "town_b"?}]}`: scores a hand-labelled sample of name pairs with the matcher's name score (`nameScore`, the same normalisation and similarity as the fuzzy step) and, when both towns are given, its town rule. Returns counts, precision, recall and F1 at each threshold from 0.50 to 0.99, `suggested_threshold` (the best F1, the higher on a tie; null when no threshold finds a true match), and a `warning` under 30 pairs. Refuses a sample without both `same: true` and `same: false`. Writes nothing; code in `core/src/employer-calibration.ts`.
 - Setup stores the job seeker's own key with `profile put --section companies_house_key`. It is read from the Profile at match time and never bundled or logged. Without it, only tiers 1 and 2 run.
 
 ### The register copy
@@ -337,7 +339,7 @@ Detected by: a name pattern (recruitment, recruiter, resourcing, staffing, talen
 
 ### Open calibration items
 
-- **`FUZZY_THRESHOLD` (0.85) is a hand-picked placeholder.** There is no hand-labelled sample of real Listings here, so precision and recall per tier are unmeasured. Calibrate it on such a sample before trusting fuzzy matches; the fixtures only prove the tiers behave as designed.
+- **`FUZZY_THRESHOLD` (0.85) is a hand-picked placeholder.** There is no hand-labelled sample of real Listings here, so precision and recall per tier are unmeasured. Measure it with `employer calibrate` over such a sample, then set it by hand in `employer.ts` before trusting fuzzy matches. The fixtures only prove the tiers behave as designed. The only sample in the repo, `core/test/fixtures/calibration/synthetic-pairs.json`, is synthetic test data and must not be used to set the threshold.
 - **Companies House behaviour is unverified against the live API.** The fixtures were written from the published API reference, not recorded with a key. Still to check live: whether `search/companies` finds previous names and how it ranks near-matches, the exact `address.locality` values returned, and whether the SIC check needs the company profile (`/company/<number>`) as assumed.
 - The agency name patterns and the `78` SIC prefix come from the research, not from measured Listings.
 

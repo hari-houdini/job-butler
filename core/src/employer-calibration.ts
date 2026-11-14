@@ -1,18 +1,21 @@
 // Calibrating the register's fuzzy threshold (#40, the open calibration item in employer.ts).
 //
-// The matcher accepts a register name when its trigram similarity to the Listing's company
-// reaches FUZZY_THRESHOLD. This module scores a hand-labelled sample of name pairs with that same
-// similarity and reports precision, recall and F1 at each threshold. It is pure: it changes no
-// state, and the threshold is still set by hand in employer.ts from what it reports.
-import { FUZZY_THRESHOLD, similarity } from "./employer.ts";
+// The matcher accepts a register name when its name score reaches FUZZY_THRESHOLD and the towns
+// agree. This module scores a hand-labelled sample of pairs the same way and reports precision,
+// recall and F1 at each threshold. It is pure: it changes no state, and the threshold is still set
+// by hand in employer.ts from what it reports.
+import { FUZZY_THRESHOLD, nameScore } from "./employer.ts";
 import { CoreError } from "./errors.ts";
-import { normaliseName } from "./sponsor.ts";
+import { townsAgree } from "./sponsor.ts";
 
 export interface LabelledPair {
   a: string;
   b: string;
   /** True when a and b name the same employer. */
   same: boolean;
+  /** Both towns, when the pair should be judged with the matcher's town rule too. */
+  town_a?: string;
+  town_b?: string;
 }
 
 export interface ThresholdRow {
@@ -31,16 +34,16 @@ export interface CalibrationReport {
   positives: number;
   negatives: number;
   current_threshold: number;
-  /** The swept threshold with the best F1; the higher one when several tie. */
-  suggested_threshold: number;
+  /** The swept threshold with the best F1 (the higher one on a tie), or null when none finds a true match. */
+  suggested_threshold: number | null;
   rows: ThresholdRow[];
-  /** Set when the sample is too small to trust. */
+  /** Set when the sample is too small to trust, or no threshold finds a true match. */
   warning: string | null;
   note: string;
 }
 
 /** Below this many pairs the figures say little about the matcher. */
-export const MIN_PAIRS = 30;
+const MIN_PAIRS = 30;
 
 const SWEEP_FROM = 0.5;
 const SWEEP_TO = 0.99;
@@ -70,20 +73,29 @@ function parsePairs(input: unknown): LabelledPair[] {
       p.a.trim() === "" ||
       typeof p.b !== "string" ||
       p.b.trim() === "" ||
-      typeof p.same !== "boolean"
+      typeof p.same !== "boolean" ||
+      (p.town_a !== undefined && typeof p.town_a !== "string") ||
+      (p.town_b !== undefined && typeof p.town_b !== "string")
     ) {
       throw new CoreError(
         "INVALID_PAIRS",
-        `pairs[${i}] needs two non-empty names "a" and "b" and a boolean "same".`,
+        `pairs[${i}] needs two non-empty names "a" and "b", a boolean "same", and optional string towns.`,
       );
     }
-    return { a: p.a, b: p.b, same: p.same };
+    return { a: p.a, b: p.b, same: p.same, town_a: p.town_a, town_b: p.town_b };
   });
 }
 
+/** The matcher's score for a pair: the name score, or -1 (never a match) when both towns are given and disagree. */
+function pairScore(p: LabelledPair): number {
+  if (p.town_a !== undefined && p.town_b !== undefined && !townsAgree(p.town_a, p.town_b)) {
+    return -1;
+  }
+  return nameScore(p.a, p.b);
+}
+
 /** Each swept threshold with the confusion counts and scores it gives on the sample. */
-function sweep(scores: { score: number; same: boolean }[]): ThresholdRow[] {
-  const positives = scores.filter((s) => s.same).length;
+function sweep(scores: { score: number; same: boolean }[], positives: number): ThresholdRow[] {
   const negatives = scores.length - positives;
   const rows: ThresholdRow[] = [];
   for (let t = SWEEP_FROM; t <= SWEEP_TO + 1e-9; t += SWEEP_STEP) {
@@ -95,8 +107,6 @@ function sweep(scores: { score: number; same: boolean }[]): ThresholdRow[] {
       if (s.same) tp++;
       else fp++;
     }
-    const fn = positives - tp;
-    const tn = negatives - fp;
     const precision = tp + fp === 0 ? 0 : tp / (tp + fp);
     const recall = positives === 0 ? 0 : tp / positives;
     const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
@@ -104,8 +114,8 @@ function sweep(scores: { score: number; same: boolean }[]): ThresholdRow[] {
       threshold,
       true_positive: tp,
       false_positive: fp,
-      false_negative: fn,
-      true_negative: tn,
+      false_negative: positives - tp,
+      true_negative: negatives - fp,
       precision: round(precision, 3),
       recall: round(recall, 3),
       f1: round(f1, 3),
@@ -125,25 +135,32 @@ export function calibrateFuzzy(input: unknown): CalibrationReport {
       "The sample needs pairs with same: true and same: false, or there is nothing to tell apart.",
     );
   }
-  const scores = pairs.map((p) => ({
-    score: similarity(normaliseName(p.a), normaliseName(p.b)),
-    same: p.same,
-  }));
-  const rows = sweep(scores);
+  const rows = sweep(
+    pairs.map((p) => ({ score: pairScore(p), same: p.same })),
+    positives,
+  );
   const best = Math.max(...rows.map((r) => r.f1));
-  // Rows ascend, so the last one with the best F1 is the highest threshold among any ties.
-  const suggested = rows.filter((r) => r.f1 === best).at(-1) as ThresholdRow;
+  // Rows ascend, so the last row with the best F1 is the highest threshold among any ties.
+  const suggested =
+    best === 0 ? null : (rows.filter((r) => r.f1 === best).at(-1)?.threshold ?? null);
+
+  const warnings: string[] = [];
+  if (best === 0) {
+    warnings.push(
+      `no threshold finds a true match: no same pair scores at or above ${SWEEP_FROM}, so none is suggested`,
+    );
+  }
+  if (pairs.length < MIN_PAIRS) {
+    warnings.push(`fewer than ${MIN_PAIRS} pairs: the figures are indicative only`);
+  }
   return {
     pairs: pairs.length,
     positives,
     negatives,
     current_threshold: FUZZY_THRESHOLD,
-    suggested_threshold: suggested.threshold,
+    suggested_threshold: suggested,
     rows,
-    warning:
-      pairs.length < MIN_PAIRS
-        ? `fewer than ${MIN_PAIRS} pairs: the figures are indicative only`
-        : null,
+    warning: warnings.length === 0 ? null : warnings.join("; "),
     note: "Nothing changes here. Set FUZZY_THRESHOLD in core/src/employer.ts by hand from these figures.",
   };
 }
