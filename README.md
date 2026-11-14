@@ -5,7 +5,7 @@ Job Butler is a personal job-search assistant for Claude Code. It finds jobs at 
 ## Requirements
 
 - **A claude.ai subscription login.** v1 needs a claude.ai subscription login. Sign in to Claude Code with your claude.ai account. API-key, Bedrock and Vertex logins are not supported in v1, and neither is a setup token (`CLAUDE_CODE_OAUTH_TOKEN`). The Gmail and Google Calendar connectors only load under a claude.ai subscription login.
-- **Node.js 22.18 or later.**
+- **Node.js 26 or later.** Node 22 is no longer supported, so if you run Node 22, upgrade to Node 26 before you install.
 - **Desktop notifications are macOS-only in v1.**
 
 ## Install

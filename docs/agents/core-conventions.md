@@ -16,7 +16,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
 
 ## Runtime: Node type stripping, no build, no runtime dependencies
 
-- The core is plain `.ts` run directly by Node (>= 22.18) through built-in type stripping. There is no build step and no `dist/`.
+- The core is plain `.ts` run directly by Node (>= 26) through built-in type stripping. There is no build step and no `dist/`.
 - Write erasable TypeScript only (no `enum`, `namespace` or constructor parameter properties) and import local files with their `.ts` extension. `tsc --noEmit` (`erasableSyntaxOnly`) enforces both.
 - A plugin install copies the repo without running `npm install`, so the core has **no runtime dependencies**. Dev dependencies (TypeScript, Biome, `@types/node`) are fine. A ticket that truly needs a runtime package (Playwright for Apply, DOCX/PDF rendering for Tailor) must decide how it gets installed and record that here. (Tailor decided: hand-written writers, see "Tailor". Apply decided: pinned `playwright-core` as a devDependency, see "Apply".)
 - Skills call the core as `node "${CLAUDE_SKILL_DIR}/../../core/src/cli.ts" <command> [args]`.
@@ -36,6 +36,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_GH`: the `gh` executable.
   - `JOB_BUTLER_OPENER`: the program `view` opens the page with (tests).
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
+  - `JOB_BUTLER_NODE_VERSION`: the Node version the startup guard (`core/src/node-guard.ts`) checks, in place of the running one (tests only, read with `nodeVersionOverride()`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
   - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook (`hook session-start`) exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
   - `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CONFIG_DIR`: Claude Code's login settings, read only by the login-type check (`claudeCodeVar()`, see "Login type check").
