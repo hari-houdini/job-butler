@@ -3,8 +3,9 @@
 //
 // Tiers, in order, each stopping at the first that gives a high-confidence match:
 //   1. exact:  the normalised name equals a register name (town only tells entries apart);
-//   2. fuzzy:  a similar name in an agreeing town (the town is required). One candidate is
-//              accepted; two or three go to the model as JSON and it may only pick one;
+//   2. fuzzy:  a similar name in an agreeing town (the town is required). It counts only when
+//              Companies House verifies it, so it needs the job seeker's key (#24). One candidate
+//              is taken; two or three go to the model as JSON and it may only pick one;
 //   3. Companies House (only with the job seeker's own key): verifies a fuzzy match (an active
 //              company with that name in that town) and attaches the company number; when
 //              tiers 1 and 2 found nothing it looks the brand up for its legal name and matches
@@ -42,6 +43,8 @@ export const FUZZY_THRESHOLD = 0.85;
 /** The model chooses among at most this many fuzzy candidates. */
 export const MAX_FUZZY_CANDIDATES = 3;
 export const AGENCY_BADGE = "agency, end client not named";
+const NEEDS_KEY_REASON =
+  "A near match needs a Companies House key to verify it. Add the key in setup, or correct the match by hand.";
 
 const COMPANIES_HOUSE = "https://api.company-information.service.gov.uk";
 
@@ -244,9 +247,12 @@ async function matchName(
     return { ...exact, company_number: (await ch?.verify(exact.group)) ?? null };
   }
 
-  // Tier 2: fuzzy, town required.
+  // Tier 2: fuzzy, town required, and only counted once Companies House verifies it (#24).
   if (town !== undefined && normaliseTown(town) !== "") {
     const found = fuzzyCandidates(index, name, town);
+    if (found.length > 0 && ch === undefined) {
+      return { status: "unmatched", reason: NEEDS_KEY_REASON };
+    }
     let chosen: RegisterGroup | undefined;
     if (found.length === 1) chosen = found[0]?.group;
     else if (found.length > 1) {
@@ -272,8 +278,7 @@ async function matchName(
         };
     }
     if (chosen !== undefined) {
-      if (ch === undefined)
-        return { status: "matched", tier: "fuzzy", group: chosen, company_number: null };
+      if (ch === undefined) return { status: "unmatched", reason: NEEDS_KEY_REASON };
       const number = await ch.verify(chosen);
       if (number !== null)
         return { status: "matched", tier: "fuzzy", group: chosen, company_number: number };
@@ -469,16 +474,19 @@ async function recheckEmployers(dataDir: string, w: StoreWriter, s: Session): Pr
       undefined,
     );
     if (outcome.status === "needs_judgment") {
-      // Keep the earlier match while it is still one of the candidates.
+      // Keep the earlier match while it is still one of the candidates. It goes through the
+      // matcher again, so Companies House still has to verify it.
       const had = asObject(rec.register_entry);
-      const prev = s.index.groups.find(
-        (g) =>
-          g.key ===
-            `${normaliseName(String(had.organisation_name ?? ""))}|${normaliseTown(String(had.town ?? ""))}` &&
-          (outcome as { candidates: Candidate[] }).candidates.some((c) => c.key === g.key),
-      );
-      if (prev !== undefined)
-        outcome = { status: "matched", tier: "fuzzy", group: prev, company_number: null };
+      const prevKey = `${normaliseName(String(had.organisation_name ?? ""))}|${normaliseTown(String(had.town ?? ""))}`;
+      if (outcome.candidates.some((c) => c.key === prevKey)) {
+        outcome = await matchName(
+          s.index,
+          s.ch,
+          agency?.end_client ?? String(rec.brand_name),
+          town,
+          { choice: prevKey },
+        );
+      }
     }
     const next = {
       ...rec,
