@@ -1,20 +1,46 @@
 name: check
 
 # The same gate as `npm run check` (typecheck, lint, conflict-marker check, tests), run on
-# every push and pull request. The real-browser Apply tests need Chromium, installed below.
+# every push and pull request, on Node 26 only. The real-browser Apply tests need Chromium:
+# it is cached between runs, and CI is set on GitHub, so a missing browser fails the run
+# rather than skipping its tests (core/test/harness.ts, realBrowserTest).
 on:
   push:
   pull_request:
+
+# Least privilege: the check only reads the repository.
+permissions:
+  contents: read
+
+# A newer push to the same ref cancels the run it supersedes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "26"
           cache: npm
+      # Read the pinned playwright-core version from package.json, so the browser cache key
+      # changes when Playwright is upgraded. This runs before `npm ci`.
+      - name: Read the playwright-core version
+        id: playwright
+        run: |
+          echo "version=$(node -p "require('./package.json').devDependencies['playwright-core']")" >> "$GITHUB_OUTPUT"
+      # Playwright's default browser directory on Linux is ~/.cache/ms-playwright.
+      # This cache must restore before the install step below.
+      - name: Cache the Chromium download
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-playwright-core-${{ steps.playwright.outputs.version }}
       - run: npm ci
+      # Installs the system libraries (--with-deps) every run. Chromium itself is a no-op
+      # when the cache restored it.
       - run: npx playwright-core install --with-deps chromium
       - run: npm run check
