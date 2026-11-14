@@ -12,11 +12,11 @@ import { getRecord, withWriter } from "./store.ts";
 import {
   type ClassifiedMessage,
   CONNECTOR,
-  learnableDomains,
   type MessageRef,
   readSync,
   syncFields,
 } from "./track.ts";
+import { learnableDomains } from "./track-ladder.ts";
 
 const refOf = (m: ClassifiedMessage): MessageRef => ({
   id: m.message_id,
