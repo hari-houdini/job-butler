@@ -129,22 +129,37 @@ test("the town only tells apart entries with the same name", async (t) => {
   assert.equal(unknown.employer.register_entry, null);
 });
 
-test("a near name matches fuzzily only when the town agrees", async (t) => {
-  const dataDir = tempDir(t);
-  const hit = await match(dataDir, { company: "Orbital Dynamic Ltd", town: "Cambridge" });
+test("a near name needs the town and a Companies House key to match", async (t) => {
+  // No key: a near match can't be verified, so it doesn't count (decision #24).
+  const plain = await match(tempDir(t), { company: "Orbital Dynamic Ltd", town: "Cambridge" });
+  assert.equal(plain.employer.status, "unmatched");
+  assert.equal(plain.employer.register_entry, null);
+  assert.match(String(plain.employer.unmatched_reason), /Companies House key/);
+
+  const keyed = tempDir(t);
+  await setKey(keyed);
+  const hit = await match(keyed, { company: "Orbital Dynamic Ltd", town: "Cambridge" });
   assert.equal(hit.employer.status, "matched");
   assert.equal(hit.employer.match_tier, "fuzzy");
   assert.equal(hit.employer.register_entry?.organisation_name, "Orbital Dynamics Limited");
-  const noTown = await match(dataDir, { company: "Orbital Dynamic Ltd" });
+  assert.equal(hit.employer.company_number, "02345678");
+  const noTown = await match(keyed, { company: "Orbital Dynamic Ltd" });
   assert.equal(noTown.employer.status, "unmatched");
-  const wrongTown = await match(dataDir, { company: "Orbital Dynamic Ltd", town: "Leeds" });
+  const wrongTown = await match(keyed, { company: "Orbital Dynamic Ltd", town: "Leeds" });
   assert.equal(wrongTown.employer.status, "unmatched");
-  const nothing = await match(dataDir, { company: "Completely Different Name", town: "Cambridge" });
+  const nothing = await match(keyed, { company: "Completely Different Name", town: "Cambridge" });
   assert.equal(nothing.employer.status, "unmatched");
+});
+
+test("without a key, several near candidates are unmatched and the model is not asked", async (t) => {
+  const plain = await match(tempDir(t), { company: "Greenfield Analytix", town: "Bristol" });
+  assert.equal(plain.employer.status, "unmatched");
+  assert.equal(plain.judgment_needed, null);
 });
 
 test("several fuzzy candidates go to the model as JSON, and only one of them can be chosen", async (t) => {
   const dataDir = tempDir(t);
+  await setKey(dataDir);
   const ask = await match(dataDir, { company: "Greenfield Analytix", town: "Bristol" });
   assert.equal(ask.employer.status, "needs_judgment");
   const candidates = ask.judgment_needed?.candidates ?? [];
@@ -158,6 +173,7 @@ test("several fuzzy candidates go to the model as JSON, and only one of them can
   });
   assert.equal(done.employer.status, "matched");
   assert.equal(done.employer.register_entry?.organisation_name, "Greenfield Analytics Limited");
+  assert.equal(done.employer.company_number, "08123456");
   assert.equal(done.judgment_needed, null);
 
   const outside = await runCli(["employer", "match", "--input", "-"], {
@@ -171,7 +187,7 @@ test("several fuzzy candidates go to the model as JSON, and only one of them can
   });
   assert.equal(outside.json.error?.code, "JUDGMENT_NOT_A_CANDIDATE");
 
-  const none = await match(tempDir(t), {
+  const none = await match(dataDir, {
     company: "Greenfield Analytix",
     town: "Bristol",
     judgment: { choice: null },

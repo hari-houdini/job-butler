@@ -256,6 +256,16 @@ function employerEvidence(employer: StoredRecord | undefined): Evidence {
       [String(employer.unmatched_reason ?? "")].filter(Boolean),
     );
   }
+  // A near match counts only once Companies House verifies it (#24). The guard also covers
+  // Employer records cached before that rule, which the matcher would otherwise reuse.
+  if (employer.match_tier === "fuzzy" && !employer.company_number) {
+    return unknown(
+      "a near match that Companies House hasn't verified",
+      EMPLOYER_RULE,
+      citation,
+      [String(employer.unmatched_reason ?? "")].filter(Boolean),
+    );
+  }
   const entry = employer.register_entry as {
     organisation_name: string;
     town: string;
