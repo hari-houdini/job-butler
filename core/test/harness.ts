@@ -5,12 +5,13 @@
 //   3. browser      -> local pages in core/test/fixtures/browser, served on 127.0.0.1
 // See docs/agents/core-conventions.md.
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
-import type { TestContext } from "node:test";
+import { type TestContext, test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = import.meta.dirname;
 export const CLI = resolve(here, "../src/cli.ts");
@@ -31,6 +32,68 @@ export function hostEnv(): Record<string, string | undefined> {
 /** One host environment variable, or undefined when it isn't set. */
 export function hostVar(name: string): string | undefined {
   return process.env[name];
+}
+
+/** Whether CI is set. CI runs must never pass a real-browser test by skipping it. */
+function inCi(): boolean {
+  const ci = hostVar("CI");
+  return ci !== undefined && ci !== "";
+}
+
+export type RealBrowser =
+  | { available: true; playwright: string }
+  | { available: false; reason: string };
+
+/**
+ * Whether a real-browser test may run: playwright-core (JOB_BUTLER_PLAYWRIGHT, else the
+ * installed package) must load, and the Chromium it launches must exist on disk.
+ * `playwright` is the entry file the CLI should load.
+ */
+export async function realBrowser(): Promise<RealBrowser> {
+  const override = hostVar("JOB_BUTLER_PLAYWRIGHT") || undefined;
+  let mod: { chromium?: { executablePath(): string }; default?: { chromium?: unknown } };
+  try {
+    mod = await import(override ? pathToFileURL(override).href : "playwright-core");
+  } catch {
+    return {
+      available: false,
+      reason: override
+        ? `JOB_BUTLER_PLAYWRIGHT=${override} doesn't load`
+        : "playwright-core isn't installed",
+    };
+  }
+  const chromium = (mod.chromium ?? mod.default?.chromium) as
+    | { executablePath(): string }
+    | undefined;
+  const exe = chromium?.executablePath();
+  if (exe === undefined || !existsSync(exe)) {
+    return {
+      available: false,
+      reason: `Chromium isn't installed (expected at ${exe ?? "unknown"}); run npx playwright-core install chromium`,
+    };
+  }
+  const playwright = override ?? fileURLToPath(import.meta.resolve("playwright-core"));
+  return { available: true, playwright };
+}
+
+/**
+ * Declares real-browser tests. When the browser is available, they run. When it isn't, they
+ * skip locally and FAIL when CI is set, so a browser CI never installed cannot pass silently.
+ */
+export function realBrowserTest(
+  browser: RealBrowser,
+): (name: string, fn: (t: TestContext) => Promise<void>) => void {
+  return (name, fn) => {
+    if (browser.available) {
+      test(name, fn);
+    } else if (inCi()) {
+      test(name, async () => {
+        throw new Error(`real-browser test can't run in CI: ${browser.reason}`);
+      });
+    } else {
+      test(name, { skip: browser.reason }, fn);
+    }
+  };
 }
 
 /** A fresh temporary directory, removed when the test ends. */

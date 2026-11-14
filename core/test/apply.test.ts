@@ -3,8 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { FIXTURES, hostVar, judgment, runCli, tempDir } from "./harness.ts";
+import { FIXTURES, judgment, realBrowser, realBrowserTest, runCli, tempDir } from "./harness.ts";
 
 // biome-ignore lint/suspicious/noExplicitAny: parsed test JSON
 type Any = any;
@@ -554,17 +553,8 @@ test("while Apply runs, the hook blocks Playwright tools that could click Submit
 // ---------------------------------------------------------------------------------------
 // A real browser, when playwright-core and its Chromium are installed
 
-function playwrightPath(): string | undefined {
-  const override = hostVar("JOB_BUTLER_PLAYWRIGHT");
-  if (override) return override;
-  try {
-    return fileURLToPath(import.meta.resolve("playwright-core"));
-  } catch {
-    return undefined;
-  }
-}
-const REAL = playwrightPath();
-const real = { skip: REAL === undefined ? "playwright-core isn't installed" : false };
+const BROWSER = await realBrowser();
+const realTest = realBrowserTest(BROWSER);
 
 /** Serve the browser fixtures and record every request, so a test can see nothing was posted. */
 async function recordingServer(t: import("node:test").TestContext) {
@@ -587,7 +577,7 @@ async function recordingServer(t: import("node:test").TestContext) {
 
 const browserEnv = () => ({
   JOB_BUTLER_BROWSER_HEADLESS: "1",
-  ...(REAL === undefined ? {} : { JOB_BUTLER_PLAYWRIGHT: REAL }),
+  ...(BROWSER.available ? { JOB_BUTLER_PLAYWRIGHT: BROWSER.playwright } : {}),
 });
 
 async function realRun(t: import("node:test").TestContext, page: string) {
@@ -600,9 +590,8 @@ async function realRun(t: import("node:test").TestContext, page: string) {
   return { dataDir, r, requests };
 }
 
-test(
+realTest(
   "real browser: a clean fill reads back, leaves the browser open, and closing deletes its profile",
-  real,
   async (t) => {
     const { dataDir, r, requests } = await realRun(t, "greenhouse-101.html");
     assert.equal(r.code, 0, r.stdout);
@@ -640,20 +629,20 @@ test(
   },
 );
 
-test("real browser: a page that rewrites a value is a read-back mismatch", real, async (t) => {
+realTest("real browser: a page that rewrites a value is a read-back mismatch", async (t) => {
   const { r } = await realRun(t, "greenhouse-101-mangle.html");
   assert.equal(r.json.outcome, "blocked", r.stdout);
   assert.equal((r.json.blockers as Any[])[0].field, "phone");
 });
 
-test("real browser: a control that submits is refused and nothing is posted", real, async (t) => {
+realTest("real browser: a control that submits is refused and nothing is posted", async (t) => {
   const { r, requests } = await realRun(t, "greenhouse-101-submit.html");
   assert.equal(r.json.outcome, "paused", r.stdout);
   assert.equal(r.json.code, "SUBMIT_REFUSED");
   assert.ok(requests.every((q) => q.startsWith("GET ")));
 });
 
-test("real browser: a form missing a planned field pauses as a page change", real, async (t) => {
+realTest("real browser: a form missing a planned field pauses as a page change", async (t) => {
   const { r } = await realRun(t, "greenhouse-101-changed.html");
   assert.equal(r.json.outcome, "paused", r.stdout);
   assert.equal(r.json.code, "PAGE_CHANGED");
