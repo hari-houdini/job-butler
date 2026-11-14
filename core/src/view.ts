@@ -464,6 +464,9 @@ mermaid.render("jb"+(++n),src.textContent).then(function(r){box.innerHTML=r.svg;
 window.jbNode=function(id){var info=(data[current]||{})[id],a=document.querySelector('article[data-listing="'+CSS.escape(current)+'"]'),p=a&&a.querySelector(".nodeinfo");if(!info||!p)return;
 p.textContent="";var h=document.createElement("b");h.textContent=info.title;p.appendChild(h);var ul=document.createElement("ul");
 info.lines.forEach(function(l){var li=document.createElement("li");li.textContent=l;ul.appendChild(li);});p.appendChild(ul);};
+// securityLevel stays "loose": Mermaid 12.3.0 binds click-with-call (click-to-evidence) only at loose.
+// Checked in a real browser (core/test/view-browser.test.ts): at "strict" the evidence panel never updates.
+// Label text is still escaped in decision-tree.ts, and the hostile-text tests cover it.
 if(window.mermaid){mermaid.initialize({startOnLoad:false,securityLevel:"loose",theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"});}
 })();
 `;
