@@ -81,7 +81,7 @@ async function setUp(dataDir: string, fillPlan: object | null = PLAN_WITH_COVER)
       sightings: [],
       gone: false,
       application_id: APP,
-      screen: { outcome: "shortlist" },
+      screen: { outcome: "shortlist", excluded_by: null, checks: [] },
     },
   });
   assert.equal(l.code, 0, l.stdout);
