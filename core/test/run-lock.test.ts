@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type TestContext, test } from "node:test";
-import { CLI, deadPid, judgment, runCli, tempDir } from "./harness.ts";
+import { CLI, deadPid, hostEnv, judgment, runCli, tempDir } from "./harness.ts";
 
 async function setUp(dataDir: string): Promise<void> {
   await runCli(["profile", "put", "--input", judgment("setup-profile")], { dataDir });
@@ -86,7 +86,7 @@ test("the run belongs to the session process, not the shell that runs each comma
 
   // As Claude Code's Bash tool does: a shell between the session and the CLI.
   const r = spawnSync("sh", ["-c", `"${process.execPath}" "${CLI}" run start discover; true`], {
-    env: { ...process.env, JOB_BUTLER_DATA_DIR: dataDir, JOB_BUTLER_SESSION_PID: "" },
+    env: { ...hostEnv(), JOB_BUTLER_DATA_DIR: dataDir, JOB_BUTLER_SESSION_PID: "" },
     encoding: "utf8",
   });
 

@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { FIXTURES, judgment, runCli, tempDir } from "./harness.ts";
+import { FIXTURES, hostVar, judgment, runCli, tempDir } from "./harness.ts";
 
 // biome-ignore lint/suspicious/noExplicitAny: parsed test JSON
 type Any = any;
@@ -555,7 +555,8 @@ test("while Apply runs, the hook blocks Playwright tools that could click Submit
 // A real browser, when playwright-core and its Chromium are installed
 
 function playwrightPath(): string | undefined {
-  if (process.env.JOB_BUTLER_PLAYWRIGHT) return process.env.JOB_BUTLER_PLAYWRIGHT;
+  const override = hostVar("JOB_BUTLER_PLAYWRIGHT");
+  if (override) return override;
   try {
     return fileURLToPath(import.meta.resolve("playwright-core"));
   } catch {

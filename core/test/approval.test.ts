@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { runCli, tempDir } from "./harness.ts";
+import { hostEnv, runCli, tempDir } from "./harness.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const CORE = "node /plugins/job-butler/core/src/cli.ts";
@@ -286,7 +286,7 @@ test("the plugin's hook command blocks the tool even when the core can't run", a
     spawnSync("sh", ["-c", command], {
       input: stdin,
       encoding: "utf8",
-      env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot, JOB_BUTLER_DATA_DIR: dir },
+      env: { ...hostEnv(), CLAUDE_PLUGIN_ROOT: pluginRoot, JOB_BUTLER_DATA_DIR: dir },
     });
 
   const pick = JSON.stringify({

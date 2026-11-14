@@ -13,7 +13,7 @@
     "test": "node --test --test-reporter=dot \"core/test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "biome check --error-on-warnings .",
-    "check:markers": "! git grep -nE '^(<<<<<<<|>>>>>>>)' -- . ':!*.jsonl'",
+    "check:markers": "! git grep --cached -nE '^(<<<<<<<|>>>>>>>)' -- . ':!*.jsonl'",
     "format": "biome check --write .",
     "check": "npm run typecheck && npm run lint && npm run check:markers && npm test"
   },

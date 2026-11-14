@@ -34,7 +34,7 @@
   },
   "overrides": [
     {
-      "includes": ["core/src/env.ts", "core/test/**"],
+      "includes": ["core/src/env.ts", "core/test/harness.ts"],
       "linter": {
         "rules": {
           "style": {

@@ -39,6 +39,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
   - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
   - `CLAUDE_ENV_FILE` (set by Claude Code; read with `claudeEnvFile()`) and `JOB_BUTLER_SESSION_PID` (read with `sessionPidOverride()`): read in `env.ts` like the rest.
+  - Tests read the host environment only through `hostEnv()` and `hostVar()` in `core/test/harness.ts`, the one test file the Biome `noProcessEnv` override allows.
 
 ## Data directory and pipeline store (ADR 0001)
 

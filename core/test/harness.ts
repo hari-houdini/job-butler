@@ -23,6 +23,16 @@ export function judgment(name: string): string {
   return join(FIXTURES, "judgments", `${name}.json`);
 }
 
+/** The host environment, to pass on to a child process. Tests read the host environment only here. */
+export function hostEnv(): Record<string, string | undefined> {
+  return { ...process.env };
+}
+
+/** One host environment variable, or undefined when it isn't set. */
+export function hostVar(name: string): string | undefined {
+  return process.env[name];
+}
+
 /** A fresh temporary directory, removed when the test ends. */
 export function tempDir(t: TestContext, prefix = "jb-test-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
