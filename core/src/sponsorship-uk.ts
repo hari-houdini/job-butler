@@ -1,7 +1,7 @@
 // The UK Skilled Worker rules (#41) behind the regime-neutral interface in sponsorship.ts:
 // employer evidence (the Home Office register, through #40's Employer record), role and wage
 // evidence (SOC 2020 eligibility and going rates, parsed from GOV.UK HTML) and the wording
-// lexicon. Sources: docs/research/uk-sponsorship-evidence.md (branch research/uk-sponsorship-evidence).
+// lexicon. Sources: docs/research/uk-sponsorship-evidence.md.
 //
 // Figures change with each Statement of Changes. Every one of them is a named constant here, the
 // one place to change them; the occupation and going-rate tables are downloaded, not hard-coded.
