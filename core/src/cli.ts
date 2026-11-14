@@ -42,6 +42,7 @@ const flagOptions = {
   "data-dir": { type: "string" },
   input: { type: "string" },
   "override-limit": { type: "string" },
+  requested: { type: "string" },
   run: { type: "string" },
   section: { type: "string" },
   session: { type: "string" },
