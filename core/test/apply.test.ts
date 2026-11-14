@@ -445,6 +445,48 @@ test("the Handover shows every field and file, and Submitted needs the job seeke
   assert.equal(last.approval.action, action);
 });
 
+/** An Application the job seeker made elsewhere, dated inside the default cooldown window. */
+async function appliedElsewhere(dataDir: string) {
+  const r = await runCli(["record", "put", "application", "app-elsewhere", "--input", "-"], {
+    dataDir,
+    input: {
+      origin: "external",
+      listing: "greenhouse:acme:999",
+      company: "Acme",
+      title: "Senior Backend Engineer",
+      status: "submitted",
+      applied_at: "2026-01-10T09:00:00.000Z",
+      event_log: [],
+    },
+  });
+  assert.equal(r.code, 0, r.stdout);
+}
+
+test("the Handover re-checks the Application limit and shows no warning while counts are unchanged", async (t) => {
+  const dataDir = tempDir(t);
+  await ready(dataDir);
+  assert.equal((await fill(dataDir, "clean")).json.outcome, "filled");
+  const h = await runCli(["apply", "handover", APP], { dataDir });
+  assert.equal(h.code, 0, h.stdout);
+  assert.equal(h.json.limit_warning, null);
+  assert.doesNotMatch(String(h.json.text), /Application limit/);
+});
+
+test("the Handover warns, without blocking, when counts changed so the Listing is now over its limit", async (t) => {
+  const dataDir = tempDir(t);
+  await ready(dataDir);
+  assert.equal((await fill(dataDir, "clean")).json.outcome, "filled");
+  await appliedElsewhere(dataDir);
+  const h = await runCli(["apply", "handover", APP], { dataDir });
+  assert.equal(h.code, 0, h.stdout);
+  assert.equal(h.json.status, "handover");
+  const w = h.json.limit_warning as Any;
+  assert.equal(w.limit, 1);
+  assert.equal(w.source, "default cooldown");
+  assert.equal(w.existing, 1);
+  assert.match(String(h.json.text), /Application limit: would be your 2nd of 1 at Acme/);
+});
+
 test("Submitted can't be recorded before the Handover", async (t) => {
   const dataDir = tempDir(t);
   await ready(dataDir);

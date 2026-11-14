@@ -25,7 +25,7 @@ const MERMAID_SOURCE = join(import.meta.dirname, "..", "vendor", "mermaid", MERM
 const MARK = { pass: "✓", warn: "!", fail: "✗", not_reached: "·" } as const;
 const CLASS = { pass: "ok", warn: "warn", fail: "bad", not_reached: "nr" } as const;
 
-function esc(value: unknown): string {
+function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
@@ -49,15 +49,17 @@ const eventsOf = (a?: StoredRecord): EventLogEntry[] =>
 
 /** A button that copies `reply` for pasting into the session. */
 function copyButton(reply: string, label = `Copy: ${reply}`, primary = false): string {
-  return `<button class="btn${primary ? " primary" : ""}" type="button" data-copy="${esc(reply)}">${esc(label)}</button>`;
+  return `<button class="btn${primary ? " primary" : ""}" type="button" data-copy="${escapeHtml(reply)}">${escapeHtml(label)}</button>`;
 }
 
 function fitHtml(fit?: { score: number; band: string }): string {
-  return fit ? `<span class="fit ${esc(fit.band)}">Fit ${fit.score} ${esc(fit.band)}</span>` : "";
+  return fit
+    ? `<span class="fit ${escapeHtml(fit.band)}">Fit ${fit.score} ${escapeHtml(fit.band)}</span>`
+    : "";
 }
 
 function chips(items: string[]): string {
-  return items.map((i) => `<span class="chip">${esc(i)}</span>`).join("");
+  return items.map((i) => `<span class="chip">${escapeHtml(i)}</span>`).join("");
 }
 
 interface Data {
@@ -116,7 +118,7 @@ async function load(dataDir: string): Promise<Data> {
 // Needs you
 
 const row = (kind: string, body: string, acts: string) =>
-  `<div class="todo"><div class="kind">${esc(kind)}</div><div class="body">${body}</div><div class="acts">${acts}</div></div>`;
+  `<div class="todo"><div class="kind">${escapeHtml(kind)}</div><div class="body">${body}</div><div class="acts">${acts}</div></div>`;
 
 function needsTab(d: Data): string {
   const out: string[] = [];
@@ -127,8 +129,8 @@ function needsTab(d: Data): string {
     const items = d.shortlist
       .map(
         (s) =>
-          `<div class="pick">${esc(s.letter)}) ${fitHtml({ score: s.fit, band: s.band })} · <b>${esc(s.company)}</b> ${esc(s.title)}` +
-          `${s.location ? ` · ${esc(s.location)}` : ""} ${chips([...s.flags, ...s.badges])} ` +
+          `<div class="pick">${escapeHtml(s.letter)}) ${fitHtml({ score: s.fit, band: s.band })} · <b>${escapeHtml(s.company)}</b> ${escapeHtml(s.title)}` +
+          `${s.location ? ` · ${escapeHtml(s.location)}` : ""} ${chips([...s.flags, ...s.badges])} ` +
           `${copyButton(`pick ${s.letter}`)} ${copyButton(`why ${s.letter}`, `Copy: why ${s.letter}`)}</div>`,
       )
       .join("");
@@ -142,14 +144,14 @@ function needsTab(d: Data): string {
     );
   }
   const ofStatus = (s: string) => d.apps.filter((a) => a.status === s);
-  const who = (a: StoredRecord) => `<b>${esc(a.company)}</b> · ${esc(a.title)}`;
+  const who = (a: StoredRecord) => `<b>${escapeHtml(a.company)}</b> · ${escapeHtml(a.title)}`;
   for (const a of ofStatus("paused")) {
     n += 1;
     const field = (a.pause as { field?: string } | undefined)?.field;
     rows.push(
       row(
         `${n}. Apply paused`,
-        `${who(a)}<div class="sub">${field ? `Paused at "${esc(field)}"` : "Apply is paused"}. Answer it, then run Apply again.</div>`,
+        `${who(a)}<div class="sub">${field ? `Paused at "${escapeHtml(field)}"` : "Apply is paused"}. Answer it, then run Apply again.</div>`,
         copyButton(`why ${a.id}`),
       ),
     );
@@ -171,7 +173,7 @@ function needsTab(d: Data): string {
     rows.push(
       row(
         `${n}. Digest change`,
-        `${who(a)}<div class="sub">${esc(statusLabel(String(a.status)))} → ${esc(statusLabel(String(change.to)))}: ${esc(change.reason)}</div>`,
+        `${who(a)}<div class="sub">${escapeHtml(statusLabel(String(a.status)))} → ${escapeHtml(statusLabel(String(change.to)))}: ${escapeHtml(change.reason)}</div>`,
         copyButton(`approve ${n}`, `Copy: approve ${n}`, true),
       ),
     );
@@ -181,8 +183,8 @@ function needsTab(d: Data): string {
     const items = d.offers
       .map(
         (o) =>
-          `<div class="pick">${o.n}) <b>${esc(o.company)}</b> · ${esc(o.title)}${o.backfill ? ' <span class="chip">backfill</span>' : ""}` +
-          `<div class="sub">Applied ${esc(o.applied_at.slice(0, 10))} · ${o.messages.length} message${o.messages.length === 1 ? "" : "s"} in your mail</div> ` +
+          `<div class="pick">${o.n}) <b>${escapeHtml(o.company)}</b> · ${escapeHtml(o.title)}${o.backfill ? ' <span class="chip">backfill</span>' : ""}` +
+          `<div class="sub">Applied ${escapeHtml(o.applied_at.slice(0, 10))} · ${o.messages.length} message${o.messages.length === 1 ? "" : "s"} in your mail</div> ` +
           `${copyButton(`approve ${o.n}`)}</div>`,
       )
       .join("");
@@ -197,12 +199,16 @@ function needsTab(d: Data): string {
   }
   for (const f of d.failedSources) {
     rows.push(
-      row("Source failed", `<b>${esc(f.company)}</b> ${esc(f.ats)}: ${esc(f.message)}`, ""),
+      row(
+        "Source failed",
+        `<b>${escapeHtml(f.company)}</b> ${escapeHtml(f.ats)}: ${escapeHtml(f.message)}`,
+        "",
+      ),
     );
   }
   out.push(
     `<h1>Needs you <span class="chip">${n}</span></h1>`,
-    `<div class="sub">${d.lastDiscover ? `Last Discover ${esc(d.lastDiscover)} · ` : ""}Page generated ${esc(timestamp())}. Buttons copy a reply to paste into your Claude Code session; this page changes nothing.</div>`,
+    `<div class="sub">${d.lastDiscover ? `Last Discover ${escapeHtml(d.lastDiscover)} · ` : ""}Page generated ${escapeHtml(timestamp())}. Buttons copy a reply to paste into your Claude Code session; this page changes nothing.</div>`,
     rows.length > 0
       ? `<div class="panel">${rows.join("")}</div>`
       : `<div class="panel"><div class="todo">Nothing needs you right now.</div></div>`,
@@ -218,7 +224,7 @@ function needsTab(d: Data): string {
       : `<div class="panel wrap"><table><tr><th>Company</th><th>Role</th><th>Status</th></tr>${quiet
           .map(
             (a) =>
-              `<tr><td>${esc(a.company)}</td><td>${esc(a.title)}</td><td>${esc(statusLabel(String(a.status)))}${a.origin === "external" ? ' <span class="chip">External</span>' : ""}</td></tr>`,
+              `<tr><td>${escapeHtml(a.company)}</td><td>${escapeHtml(a.title)}</td><td>${escapeHtml(statusLabel(String(a.status)))}${a.origin === "external" ? ' <span class="chip">External</span>' : ""}</td></tr>`,
           )
           .join("")}</table></div>`,
   );
@@ -230,9 +236,9 @@ function needsTab(d: Data): string {
         const s = screenOf(l) as Screen;
         const by = s.checks.find((c) => c.check === s.excluded_by);
         const why = by
-          ? `${esc(by.name)}: ${esc(by.result)}. ${by.evidence.map(esc).join(" ")}`
+          ? `${escapeHtml(by.name)}: ${escapeHtml(by.result)}. ${by.evidence.map(escapeHtml).join(" ")}`
           : "";
-        return `<div class="todo"><div class="body"><b>${esc(l.company)}</b> · ${esc(l.title)}<div class="sub">${why}</div></div><div class="acts">${copyButton(`restore ${l.company} ${l.title}`)}</div></div>`;
+        return `<div class="todo"><div class="body"><b>${escapeHtml(l.company)}</b> · ${escapeHtml(l.title)}<div class="sub">${why}</div></div><div class="acts">${copyButton(`restore ${l.company} ${l.title}`)}</div></div>`;
       })
       .join("")}</details>`,
   );
@@ -250,11 +256,11 @@ function boardTab(d: Data): string {
     const listing = (a: StoredRecord) =>
       typeof a.listing === "string" ? d.listings.find((l) => l.id === a.listing) : undefined;
     return (
-      `<div class="col" data-status="${key}"><h3>${esc(label)}<span>${cards.length}</span></h3>` +
+      `<div class="col" data-status="${key}"><h3>${escapeHtml(label)}<span>${cards.length}</span></h3>` +
       cards
         .map((a) => {
           const fit = fitHtml(screenOf(listing(a) ?? ({} as StoredRecord))?.fit);
-          return `<div class="card${NEEDS_STATUS.has(key) ? " needs" : ""}"><b>${esc(a.company)}</b><br>${esc(a.title)}<div>${fit}${a.origin === "external" ? ' <span class="chip">External</span>' : ""}</div></div>`;
+          return `<div class="card${NEEDS_STATUS.has(key) ? " needs" : ""}"><b>${escapeHtml(a.company)}</b><br>${escapeHtml(a.title)}<div>${fit}${a.origin === "external" ? ' <span class="chip">External</span>' : ""}</div></div>`;
         })
         .join("") +
       "</div>"
@@ -285,7 +291,7 @@ interface NodeInfo {
 function listingDetail(l: StoredRecord, app: StoredRecord | undefined) {
   const s = screenOf(l);
   const head =
-    `<h1>${esc(l.company)} · ${esc(l.title)}</h1><div class="sub">${esc(l.location ?? "")} · ${esc(l.source ?? "")}` +
+    `<h1>${escapeHtml(l.company)} · ${escapeHtml(l.title)}</h1><div class="sub">${escapeHtml(l.location ?? "")} · ${escapeHtml(l.source ?? "")}` +
     ` ${fitHtml(s?.fit)}</div>` +
     `<div>${chips([...(s?.flags ?? []), ...(s?.badges ?? [])].map((f) => f.label))}` +
     `${l.gone === true ? chips(["gone from its board"]) : ""}</div>`;
@@ -325,10 +331,10 @@ function listingDetail(l: StoredRecord, app: StoredRecord | undefined) {
     checks = `<ol class="checks">${s.checks
       .map(
         (c) =>
-          `<li class="${CLASS[c.status]}"><span class="mark">${MARK[c.status]}</span> <b>${esc(c.name)}</b> ${esc(c.result)}` +
+          `<li class="${CLASS[c.status]}"><span class="mark">${MARK[c.status]}</span> <b>${escapeHtml(c.name)}</b> ${escapeHtml(c.result)}` +
           (c.status === "not_reached"
             ? ""
-            : `<div class="sub">rule: ${esc(c.rule)}</div><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>`) +
+            : `<div class="sub">rule: ${escapeHtml(c.rule)}</div><ul>${c.evidence.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`) +
           "</li>",
       )
       .join("")}</ol>`;
@@ -341,8 +347,8 @@ function listingDetail(l: StoredRecord, app: StoredRecord | undefined) {
       : `<ul class="log">${log
           .map(
             (e) =>
-              `<li><span class="sub">${esc(e.at)} · ${esc(e.stage)}</span> <b>${esc(e.from ? `${statusLabel(e.from)} → ` : "")}${esc(statusLabel(e.to))}</b> ${esc(e.reason)}` +
-              `${e.approval ? ` <i>Approval: ${esc(e.approval.checkpoint)} (${esc(e.approval.action)})</i>` : ""}</li>`,
+              `<li><span class="sub">${escapeHtml(e.at)} · ${escapeHtml(e.stage)}</span> <b>${escapeHtml(e.from ? `${statusLabel(e.from)} → ` : "")}${escapeHtml(statusLabel(e.to))}</b> ${escapeHtml(e.reason)}` +
+              `${e.approval ? ` <i>Approval: ${escapeHtml(e.approval.checkpoint)} (${escapeHtml(e.approval.action)})</i>` : ""}</li>`,
           )
           .join("")}</ul>`);
   return { html: head + tree + checks + events, info };
@@ -368,7 +374,7 @@ function listingsTab(d: Data): {
           : "Shortlist";
     entries.push({
       id: l.id,
-      label: `<b>${esc(l.company)}</b> ${esc(l.title)}`,
+      label: `<b>${escapeHtml(l.company)}</b> ${escapeHtml(l.title)}`,
       state,
       body: html,
     });
@@ -377,23 +383,23 @@ function listingsTab(d: Data): {
     const log = eventsOf(a);
     entries.push({
       id: a.id,
-      label: `<b>${esc(a.company)}</b> ${esc(a.title)}`,
+      label: `<b>${escapeHtml(a.company)}</b> ${escapeHtml(a.title)}`,
       state: `${statusLabel(String(a.status))} · External`,
       body:
-        `<h1>${esc(a.company)} · ${esc(a.title)}</h1><div class="sub">Applied outside Job Butler</div>` +
-        `<h2>Event log</h2>${log.length === 0 ? '<div class="sub">No events yet.</div>' : `<ul class="log">${log.map((e) => `<li>${esc(e.at)} ${esc(statusLabel(e.to))} ${esc(e.reason)}</li>`).join("")}</ul>`}`,
+        `<h1>${escapeHtml(a.company)} · ${escapeHtml(a.title)}</h1><div class="sub">Applied outside Job Butler</div>` +
+        `<h2>Event log</h2>${log.length === 0 ? '<div class="sub">No events yet.</div>' : `<ul class="log">${log.map((e) => `<li>${escapeHtml(e.at)} ${escapeHtml(statusLabel(e.to))} ${escapeHtml(e.reason)}</li>`).join("")}</ul>`}`,
     });
   }
   const list = entries
     .map(
       (e, i) =>
-        `<button type="button" class="${i === 0 ? "on" : ""}" data-select="${esc(e.id)}">${e.label}<br><span class="sub">${esc(e.state)}</span></button>`,
+        `<button type="button" class="${i === 0 ? "on" : ""}" data-select="${escapeHtml(e.id)}">${e.label}<br><span class="sub">${escapeHtml(e.state)}</span></button>`,
     )
     .join("");
   const details = entries
     .map(
       (e, i) =>
-        `<article class="detail panel" data-listing="${esc(e.id)}"${i === 0 ? "" : " hidden"}>${e.body}</article>`,
+        `<article class="detail panel" data-listing="${escapeHtml(e.id)}"${i === 0 ? "" : " hidden"}>${e.body}</article>`,
     )
     .join("");
   return {

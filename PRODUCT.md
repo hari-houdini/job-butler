@@ -6,11 +6,11 @@
 
 web
 
-Visual surfaces are web-rendered: claude.ai artifacts and generated documents (HTML, PDF, DOCX). Most interaction happens in conversation, in Claude Code or Claude chat. The terminal is the main surface for now.
+Visual surfaces are web-rendered: a local HTML pipeline page and generated documents (HTML, PDF, DOCX). Most interaction happens in conversation, in Claude Code or Claude chat. The terminal is the main surface for now.
 
 ## Stack
 
-A multi-agent Claude skills repo: skills and subagents that run inside Claude, not a standalone app. There is no separate web app or server. Visual output is published as artifacts or written out as document files.
+A multi-agent Claude skills repo: skills and subagents that run inside Claude, not a standalone app. There is no separate web app or server. Visual output is a local HTML page generated into the data directory (never an artifact) or written out as document files.
 
 ## Users
 
@@ -32,7 +32,7 @@ Spreadsheets and trackers such as Huntr or Teal make the user do the work. Job B
 
 - Runs inside Claude (Claude Code or chat) as skills and subagents, using connected tools such as email, calendar and job-board connectors.
 - The user directs the work in conversation and reviews drafts before acting on them.
-- Outputs are tailored resumes and cover letters, pipeline and tracker views (artifacts), and job feeds.
+- Outputs are tailored resumes and cover letters, a pipeline and tracker view (a local HTML page generated into the data directory, never an artifact), and job feeds.
 
 ## Capabilities and Constraints
 

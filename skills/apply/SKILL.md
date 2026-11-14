@@ -30,7 +30,7 @@ It prints one JSON object. On `"ok": false`, tell the job seeker `error.message`
    - `outcome: "paused"`: relay `reason` (page error, page change, or a control that would submit). The partial plan is kept. Resume with `apply fill` again once the job seeker says the page is fine.
    - `outcome: "blocked"`: list each blocker (`detail`). Fix the cause (an `apply answer`, or a re-dispatched worker for the plan), then run `apply fill` again. A blocker stands until a fill passes.
    - `outcome: "filled"`: continue.
-6. Run `apply handover <application_id>` and show its `text` in a code block: every field and each attached file. Tell the job seeker the form is open in the browser, to review it there and click Submit themselves.
+6. Run `apply handover <application_id>` and show its `text` in a code block: every field and each attached file. If `limit_warning` is not null, say it first: the Application limit was re-checked and the Listing is now over it (`label` gives limit, source and count). The Handover still goes ahead; the job seeker decides. Tell the job seeker the form is open in the browser, to review it there and click Submit themselves.
 7. Ask whether they clicked Submit. Only on their yes:
    1. Record the Approval: `approval record handover --session "${CLAUDE_SESSION_ID}" --input -` with `{"actions": ["application submitted <application_id>"]}`.
    2. Run `application submitted <application_id>`. Write the command out in full.

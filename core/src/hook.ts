@@ -26,7 +26,7 @@ import {
   spendApproval,
   useGrant,
 } from "./approval.ts";
-import { resolveDataDir, timestamp } from "./env.ts";
+import { claudeEnvFile, resolveDataDir, timestamp } from "./env.ts";
 import { CoreError } from "./errors.ts";
 import { lockPath, readRunLock } from "./lock.ts";
 
@@ -310,7 +310,7 @@ async function markSession(dataDir: string, session: string): Promise<void> {
  * commands that record Approvals and grants know their session without a --session flag.
  */
 export async function sessionStart(rawInput: string): Promise<HookOutput> {
-  const envFile = process.env.CLAUDE_ENV_FILE;
+  const envFile = claudeEnvFile();
   let session: unknown;
   try {
     session = (JSON.parse(rawInput) as ToolCall).session_id;

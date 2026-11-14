@@ -97,9 +97,23 @@ async function shortlist(dataDir: string): Promise<Item[]> {
   return r.json.shortlist as Item[];
 }
 
+interface LimitCheck {
+  check: string;
+  status: string;
+  result: string;
+  evidence: string[];
+}
+
+interface StoredListing {
+  screen: { checks: LimitCheck[] };
+  decision_tree: string;
+  application_id?: string;
+  overrides: { kind: string }[];
+}
+
 async function getListing(dataDir: string, id: string) {
   const r = await runCli(["record", "get", "listing", id], { dataDir });
-  return r.json.record as Record<string, any>;
+  return r.json.record as StoredListing;
 }
 
 function entry(to: string, at: string, from: string | null = null) {
@@ -196,7 +210,9 @@ test("the advert's limit, with its quote, beats the default", async (t) => {
   assert.match(platform?.flags[0] ?? "", /would be your 2nd of 1 at Acme in 30 days/);
   assert.match(platform?.flags[0] ?? "", /advert/);
   const stored = await getListing(dataDir, PLATFORM);
-  const check = stored.screen.checks.find((c: any) => c.check === "application_limit.limit");
+  const check = stored.screen.checks.find(
+    (c) => c.check === "application_limit.limit",
+  ) as LimitCheck;
   assert.ok(check.evidence.some((e: string) => e.includes("Please apply to one role at a time")));
   // The other two Listings have no advert limit and fall back to the same-role default.
   const backend = items.find((i) => i.id === BACKEND);
@@ -280,7 +296,9 @@ test("Submitted, Picked and External applications count; withdrawn picks and old
   assert.deepEqual(backend?.flags, []);
   assert.deepEqual(backend?.badges, []);
   const stored = await getListing(dataDir, BACKEND);
-  const check = stored.screen.checks.find((c: any) => c.check === "application_limit.limit");
+  const check = stored.screen.checks.find(
+    (c) => c.check === "application_limit.limit",
+  ) as LimitCheck;
   assert.equal(check.status, "pass");
   assert.match(check.result, /3 of 5/);
 });
@@ -439,7 +457,7 @@ test("every Listing's Decision tree has an Application-limit node", async (t) =>
   await screen(dataDir);
   for (const id of [BACKEND, PLATFORM, BACKEND_BERLIN]) {
     const l = await getListing(dataDir, id);
-    assert.ok(l.screen.checks.some((c: any) => c.check === "application_limit.limit"));
+    assert.ok(l.screen.checks.some((c) => c.check === "application_limit.limit"));
     const tree = readFileSync(join(dataDir, l.decision_tree), "utf8");
     assert.match(tree, /Application limit/);
   }
@@ -485,7 +503,7 @@ test("picking an over-limit Listing needs an explicit override, which the Event 
   assert.match(apps[0]?.event_log[0]?.reason ?? "", /override/i);
   assert.match(apps[0]?.event_log[0]?.reason ?? "", /2nd of 1/);
   const l = await getListing(dataDir, BACKEND);
-  assert.equal(l.overrides[0].kind, "application_limit");
+  assert.equal(l.overrides[0]?.kind, "application_limit");
   const tree = readFileSync(join(dataDir, l.decision_tree), "utf8");
   assert.match(tree, /Override: application_limit/);
 });

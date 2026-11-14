@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { link, readFile, unlink, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, join } from "node:path";
-import { timestamp } from "./env.ts";
+import { sessionPidOverride, timestamp } from "./env.ts";
 import { CoreError } from "./errors.ts";
 
 export interface LockInfo {
@@ -140,8 +140,8 @@ const WRAPPERS = new Set([
  * it (tests). Where `ps` isn't available (Windows), the parent process is used.
  */
 export function sessionPid(): number {
-  const fixed = process.env.JOB_BUTLER_SESSION_PID;
-  if (fixed) return Number(fixed);
+  const fixed = sessionPidOverride();
+  if (fixed !== undefined) return fixed;
   let pid = process.ppid;
   for (let depth = 0; depth < 10; depth++) {
     const r = spawnSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], { encoding: "utf8" });

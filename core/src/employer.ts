@@ -413,8 +413,6 @@ interface Rechecked {
   changed: { id: string; before: string; after: string }[];
 }
 
-const asRecord = (r: Record<string, unknown>) => r as unknown as StoredRecord;
-
 const label = (r: Record<string, unknown>) =>
   r.status === "matched" ? String(asObject(r.register_entry).organisation_name) : String(r.status);
 

@@ -72,3 +72,14 @@ export function playwrightEntry(): string | undefined {
 export function browserHeadless(): boolean {
   return process.env.JOB_BUTLER_BROWSER_HEADLESS === "1";
 }
+
+/** A fixed session process ID (JOB_BUTLER_SESSION_PID, tests), else undefined. */
+export function sessionPidOverride(): number | undefined {
+  const fixed = process.env.JOB_BUTLER_SESSION_PID;
+  return fixed ? Number(fixed) : undefined;
+}
+
+/** The file Claude Code lets a SessionStart hook append `export` lines to, when it sets one. */
+export function claudeEnvFile(): string | undefined {
+  return process.env.CLAUDE_ENV_FILE || undefined;
+}
