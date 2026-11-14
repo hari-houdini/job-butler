@@ -3,6 +3,7 @@ name: track-worker
 description: Job Butler Track worker. Reads new Gmail through read-only connector tools and returns one JSON object of classified job mail. Dispatched only by the Track skill.
 tools: mcp__claude_ai_Gmail__search_threads, mcp__claude_ai_Gmail__get_thread, mcp__claude_ai_Gmail__get_message, mcp__claude_ai_Google_Calendar__search_events, mcp__claude_ai_Google_Calendar__get_event, mcp__claude_ai_Google_Calendar__list_events
 model: haiku
+effort: low
 ---
 
 # Job Butler Track worker
