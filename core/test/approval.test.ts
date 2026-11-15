@@ -98,6 +98,49 @@ for (const { checkpoint, action } of checkpoints) {
   });
 }
 
+// Each Checkpoint command refuses when it runs without a spent Approval for its exact action,
+// whether none was recorded or one was recorded but the hook never spent it. Run directly, so
+// the hook is not in the path.
+const directCheckpointCalls = [
+  {
+    checkpoint: "shortlist-pick",
+    args: ["application", "pick", "greenhouse:acme:1"],
+    message: /There's no Shortlist-pick Approval/,
+  },
+  {
+    checkpoint: "digest-status",
+    args: ["application", "status", "app-1", "interview", "1"],
+    message: /There's no digest-status Approval/,
+  },
+  {
+    checkpoint: "handover",
+    args: ["application", "submitted", "app-1"],
+    message: /There's no Handover Approval/,
+  },
+  {
+    checkpoint: "digest-status",
+    args: ["application", "external", "1"],
+    message: /There's no digest-status Approval/,
+  },
+];
+
+for (const { checkpoint, args, message } of directCheckpointCalls) {
+  test(`${args.slice(0, 2).join(" ")} refuses without a spent ${checkpoint} Approval`, async (t) => {
+    const dataDir = tempDir(t);
+    const none = await runCli(args, { dataDir });
+    assert.equal(none.code, 1, none.stdout);
+    assert.equal(none.json.error?.code, "APPROVAL_MISSING");
+    assert.match(String(none.json.error?.message), message);
+
+    const recorded = await recordApproval(dataDir, checkpoint, [args.join(" ")]);
+    assert.equal(recorded.code, 0, recorded.stdout);
+    const unspent = await runCli(args, { dataDir });
+    assert.equal(unspent.code, 1, unspent.stdout);
+    assert.equal(unspent.json.error?.code, "APPROVAL_MISSING");
+    assert.match(String(unspent.json.error?.message), message);
+  });
+}
+
 test("an Approval covers only the actions it lists", async (t) => {
   const dataDir = tempDir(t);
   await recordApproval(dataDir, "digest-status", ["application status app-1 interview"]);

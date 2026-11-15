@@ -5,7 +5,7 @@
 // Record shape: docs/agents/core-conventions.md, "Application record".
 import { randomUUID } from "node:crypto";
 import { liveEvaluation, loadLimitWorld } from "./application-limit.ts";
-import { approvalUsedFor, normaliseAction } from "./approval.ts";
+import { citeSpentApproval, normaliseAction } from "./approval.ts";
 import { treePath, writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
@@ -105,15 +105,12 @@ export async function pickListings(
     throw usageError("application pick: give at least one <listing-id>");
   }
   const action = normaliseAction(`application pick ${listingIds.join(" ")}`);
-  const approval = await approvalUsedFor(dataDir, action);
-  if (approval === undefined) {
-    throw new CoreError(
-      "APPROVAL_MISSING",
-      `There's no Shortlist-pick Approval for "${action}", so nothing was picked. Ask the job ` +
-        "seeker at the Shortlist, record their yes with `approval record shortlist-pick`, then pick.",
-      { action },
-    );
-  }
+  const approval = await citeSpentApproval(
+    dataDir,
+    action,
+    `There's no Shortlist-pick Approval for "${action}", so nothing was picked. Ask the job ` +
+      "seeker at the Shortlist, record their yes with `approval record shortlist-pick`, then pick.",
+  );
   return withWriter(dataDir, "application pick", async (w) => {
     const ids = [...new Set(listingIds)];
     const listings: StoredRecord[] = [];
@@ -166,12 +163,7 @@ export async function pickListings(
           (overridden.has(listing.id)
             ? ` Application-limit override: it ${overridden.get(listing.id)}.`
             : ""),
-        approval: {
-          id: approval.id,
-          checkpoint: approval.checkpoint,
-          approved_at: approval.approved_at,
-          action,
-        },
+        approval,
       };
       const app = await w.put("application", randomUUID(), {
         origin: "picked",

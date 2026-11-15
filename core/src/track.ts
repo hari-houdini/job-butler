@@ -12,7 +12,7 @@
 // See docs/agents/core-conventions.md, "Track tracer (set by #48)".
 import { join } from "node:path";
 import { type EventLogEntry, STATUSES, type Status, statusLabel } from "./application.ts";
-import { approvalUsedFor, normaliseAction } from "./approval.ts";
+import { citeSpentApproval, normaliseAction } from "./approval.ts";
 import { now, timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import {
@@ -788,15 +788,12 @@ export async function approveStatus(dataDir: string, args: string[]) {
   const to = statusArg as Status;
   const n = Number(nArg);
   const action = normaliseAction(`application status ${args.join(" ")}`);
-  const approval = await approvalUsedFor(dataDir, action);
-  if (approval === undefined) {
-    throw new CoreError(
-      "APPROVAL_MISSING",
-      `There's no digest-status Approval for "${action}", so no Status changed. Show the digest, ` +
-        "record the job seeker's yes with `approval record digest-status`, then run it.",
-      { action },
-    );
-  }
+  const approval = await citeSpentApproval(
+    dataDir,
+    action,
+    `There's no digest-status Approval for "${action}", so no Status changed. Show the digest, ` +
+      "record the job seeker's yes with `approval record digest-status`, then run it.",
+  );
   return withWriter(dataDir, "application status", async (w) => {
     const sync = await readSync(dataDir);
     const fields = syncFields(sync);
@@ -829,12 +826,7 @@ export async function approveStatus(dataDir: string, args: string[]) {
       stage: "track",
       to,
       reason: proposal.reason,
-      approval: {
-        id: approval.id,
-        checkpoint: approval.checkpoint,
-        approved_at: approval.approved_at,
-        action,
-      },
+      approval,
       ...(proposal.message ? { message: proposal.message } : {}),
       at,
     });

@@ -10,6 +10,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { EventApproval } from "./application.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { listRecords, type StoredRecord, withWriter, writeThenReplace } from "./store.ts";
@@ -250,11 +251,8 @@ export async function spendApproval(
   });
 }
 
-/**
- * The Approval that covered `action` most recently, for a Checkpoint command's Event log
- * entry. The hook spends the action just before the command runs.
- */
-export async function approvalUsedFor(
+/** The spent Approval that covered `action` most recently, if any. */
+async function latestSpentApproval(
   dataDir: string,
   action: string,
 ): Promise<ApprovalRecord | undefined> {
@@ -268,6 +266,30 @@ export async function approvalUsedFor(
     }
   }
   return best?.a;
+}
+
+/**
+ * The Event log citation of the spent Approval for `action`, which a Checkpoint command writes
+ * into its Event log entry. The hook spends the action just before the command runs. When no
+ * spent Approval covers it, this throws APPROVAL_MISSING with `missing`, the command's own
+ * wording of what the job seeker has to do next. The command keeps its Status rules.
+ */
+export async function citeSpentApproval(
+  dataDir: string,
+  action: string,
+  missing: string,
+): Promise<EventApproval> {
+  const normalised = normaliseAction(action);
+  const approval = await latestSpentApproval(dataDir, normalised);
+  if (approval === undefined) {
+    throw new CoreError("APPROVAL_MISSING", missing, { action: normalised });
+  }
+  return {
+    id: approval.id,
+    checkpoint: approval.checkpoint,
+    approved_at: approval.approved_at,
+    action: normalised,
+  };
 }
 
 // ---------------------------------------------------------------------------------------
