@@ -46,6 +46,14 @@ jobs:
       # Installs the system libraries (--with-deps) every run. Chromium itself is a no-op
       # when the cache restored it.
       - run: npx playwright-core install --with-deps chromium
+      # Ubuntu 24.04+ runners restrict unprivileged user namespaces through AppArmor. Without this,
+      # the headless Chromium the real-browser tests start can't set up its sandbox, exits before it
+      # opens its DevTools port, and every real-browser test fails. Only the CI runner is changed.
+      - name: Let Chromium's sandbox start on the runner
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - run: npm run check
       # Every commit in a pull request must be Conventional Commits (the local commit-msg hook can be skipped).
       - name: Lint pull request commit messages
