@@ -1,0 +1,28 @@
+name: release-please
+
+# Opens or updates a release PR from the Conventional Commits on main. Merging that PR tags the
+# release (vX.Y.Z) and creates the GitHub Release with its CHANGELOG.md entry. Nothing is published
+# to npm: the package is private.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Pinned to a full commit SHA (tag v4). A tag can be moved; a SHA cannot.
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
