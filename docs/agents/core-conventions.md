@@ -85,7 +85,7 @@ Two layers: the Stage skill asks at the Checkpoint, and the PreToolUse hook (`ho
    ```
    `--session` may be left out when `JOB_BUTLER_SESSION_ID` is set. Actions from another Checkpoint refuse with `ACTION_NOT_AT_CHECKPOINT`; no session refuses with `NO_SESSION`.
 4. Run each action as its own written-out core command. Each is allowed once; a second run, or a run in a later session, is denied (`already used` / `has expired`), and you must ask again.
-5. In the command's Event log entry, cite the Approval: `approvalUsedFor(dataDir, action)` returns the record whose action the hook just spent (its `id`, `checkpoint`, `approved_at`).
+5. In the command's Event log entry, cite the Approval: `citeSpentApproval(dataDir, action, missing)` in `approval.ts` returns the citation of the spent Approval for that action (its `id`, `checkpoint`, `approved_at`, `action`). It throws `APPROVAL_MISSING` with the command's own `missing` message when none is spent.
 
 Approval record (`pipeline/approval/<uuid>.json`): `checkpoint`, `session_id`, `approved_at`, `actions: [{action, spent_at}]`. `approval list [--session]` shows each as `active`, `spent` or `expired`.
 
@@ -225,7 +225,7 @@ Steps in their own modules, in `SCREEN_STEPS` order: `scamStep`, `denyStep` (`co
 - `origin` (`picked`; `external` from #50), `listing` (the Listing ID, the field Dedupe finds Applications by; null for External), `company`, `title`, `status`, `event_log`, `gmail_threads: []`, `answers: []`, `fill_plan: null`, `tailor: null`, `decision_tree` (the Listing's tree path). The Listing gets `application_id`.
 - Status values (`STATUSES`, snake_case keys with display names): `picked`, `tailored`, `ready_to_apply`, `paused`, `handover`, `submitted`, `interview`, `rejected`, `offer`, `withdrawn`, `no_response`.
 - Event log entry (append only): `{at, stage, from, to, reason, approval}`; `approval` is `{id, checkpoint, approved_at, action}` for a Checkpoint change, else null. Every Status move goes through `moveStatus` in `core/src/status-move.ts` (#67), which appends the entry and redraws the Listing's tree in the same write. Creating an Application with its first Status is not a move.
-- `application pick <listing-id>...`: one action covers all the IDs (`application pick <id-1> <id-2>`), one `withWriter`. It refuses `APPROVAL_MISSING` unless `approvalUsedFor` finds the spent Approval for that exact action (so it never runs outside the hook), and all-or-nothing `NOT_FOUND`, `NOT_ON_SHORTLIST` (unscreened, excluded or gone) or `ALREADY_PICKED`. Each new entry cites the Approval. Later Checkpoint commands (`application status`, `application submitted`) follow the same shape: check `approvalUsedFor`, append an entry, rewrite the tree in the same `withWriter`.
+- `application pick <listing-id>...`: one action covers all the IDs (`application pick <id-1> <id-2>`), one `withWriter`. It refuses `APPROVAL_MISSING` unless `citeSpentApproval` finds the spent Approval for that exact action (so it never runs outside the hook), and all-or-nothing `NOT_FOUND`, `NOT_ON_SHORTLIST` (unscreened, excluded or gone) or `ALREADY_PICKED`. Each new entry cites the Approval. Later Checkpoint commands (`application status`, `application submitted`) follow the same shape: call `citeSpentApproval`, append an entry, rewrite the tree in the same `withWriter`.
 
 ## Decision tree (set by #34, `core/src/decision-tree.ts`)
 

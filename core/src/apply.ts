@@ -10,7 +10,7 @@
 import { join } from "node:path";
 import { STATUSES, type Status, statusLabel } from "./application.ts";
 import { ATS_NAME, formTarget, readForm } from "./apply-form.ts";
-import { approvalUsedFor, normaliseAction } from "./approval.ts";
+import { citeSpentApproval, normaliseAction } from "./approval.ts";
 import { BATCH_SIZE } from "./batch.ts";
 import type { FormField, FormSchema } from "./boards/greenhouse-form.ts";
 import { timestamp } from "./env.ts";
@@ -572,16 +572,13 @@ export async function applicationSubmitted(dataDir: string, args: string[]) {
     throw usageError("application submitted: exactly one <application-id> is required");
   }
   const action = normaliseAction(`application submitted ${id}`);
-  const approval = await approvalUsedFor(dataDir, action);
-  if (approval === undefined) {
-    throw new CoreError(
-      "APPROVAL_MISSING",
-      `There's no Handover Approval for "${action}", so Submitted wasn't recorded. Show the Handover, ` +
-        "ask the job seeker to click Submit themselves and confirm, record their yes with " +
-        "`approval record handover`, then run it.",
-      { action },
-    );
-  }
+  const approval = await citeSpentApproval(
+    dataDir,
+    action,
+    `There's no Handover Approval for "${action}", so Submitted wasn't recorded. Show the Handover, ` +
+      "ask the job seeker to click Submit themselves and confirm, record their yes with " +
+      "`approval record handover`, then run it.",
+  );
   return withWriter(dataDir, "application submitted", async (w) => {
     const app = getApp(await getRecord(dataDir, "application", id), id);
     if (app.status !== "handover") {
@@ -596,12 +593,7 @@ export async function applicationSubmitted(dataDir: string, args: string[]) {
       stage: "apply",
       to: "submitted",
       reason: "The job seeker confirmed they clicked Submit.",
-      approval: {
-        id: approval.id,
-        checkpoint: approval.checkpoint,
-        approved_at: approval.approved_at,
-        action,
-      },
+      approval,
       at,
       changes: { submitted_at: at },
     });
