@@ -9,37 +9,24 @@
 import { treePath, writeTrees } from "./decision-tree.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
-import { type Check, marksFor } from "./screen-check.ts";
+import type { ScreenOutcome, ScreenOverride } from "./screen.ts";
+import { marksFor } from "./screen-check.ts";
 import { getRecord, listRecords, type StoredRecord, withWriter } from "./store.ts";
 import { isObject } from "./validate.ts";
-
-interface ScreenData {
-  outcome: "shortlist" | "excluded";
-  excluded_by: string | null;
-  checks: Check[];
-  after_exclusion?: Check[];
-  [field: string]: unknown;
-}
-
-interface Override {
-  kind: string;
-  check?: string;
-  at?: string;
-}
 
 /** The check that decides a deny-listed Listing; never restorable. */
 const DENY_CHECK = "deny.list";
 
-function screenOf(listing: StoredRecord): ScreenData | undefined {
-  return isObject(listing.screen) ? (listing.screen as ScreenData) : undefined;
+function screenOf(listing: StoredRecord): ScreenOutcome | undefined {
+  return isObject(listing.screen) ? (listing.screen as ScreenOutcome) : undefined;
 }
 
-function overridesOf(listing: StoredRecord): Override[] {
-  return Array.isArray(listing.overrides) ? (listing.overrides as Override[]) : [];
+function overridesOf(listing: StoredRecord): ScreenOverride[] {
+  return Array.isArray(listing.overrides) ? (listing.overrides as ScreenOverride[]) : [];
 }
 
 /** The screen of an excluded Listing after a restore: on the Shortlist, flagged with a badge. */
-export function applyRestore(screen: ScreenData): ScreenData {
+export function applyRestore(screen: ScreenOutcome): ScreenOutcome {
   const excluding = screen.checks.find((c) => c.check === screen.excluded_by);
   const after = screen.after_exclusion ?? [];
   const checks = screen.checks.map((c) =>
@@ -60,7 +47,7 @@ export function applyRestore(screen: ScreenData): ScreenData {
 }
 
 /** After a rescore: an exclusion the job seeker already overruled stays overruled. */
-export function reapplyRestore(listing: StoredRecord, screen: ScreenData): ScreenData {
+export function reapplyRestore(listing: StoredRecord, screen: ScreenOutcome): ScreenOutcome {
   if (screen.outcome !== "excluded") return screen;
   const restored = overridesOf(listing).some(
     (o) => o.kind === "restore" && o.check === screen.excluded_by,
@@ -74,7 +61,7 @@ function isExcluded(l: StoredRecord): boolean {
 
 export async function showExcluded(dataDir: string) {
   const excluded = (await listRecords(dataDir, "listing")).filter(isExcluded).map((l) => {
-    const screen = screenOf(l) as ScreenData;
+    const screen = screenOf(l) as ScreenOutcome;
     const by = screen.checks.find((c) => c.check === screen.excluded_by);
     return {
       id: l.id,
@@ -124,7 +111,7 @@ export async function restoreListing(dataDir: string, words: string[]) {
   return withWriter(dataDir, "restore", async (w) => {
     const listings = await listRecords(dataDir, "listing");
     const listing = resolve(listings, words);
-    const screen = screenOf(listing) as ScreenData;
+    const screen = screenOf(listing) as ScreenOutcome;
     if (screen.excluded_by === DENY_CHECK) {
       throw new CoreError(
         "DENY_LISTED",
@@ -133,7 +120,7 @@ export async function restoreListing(dataDir: string, words: string[]) {
         { listing_id: listing.id },
       );
     }
-    const override: Override = {
+    const override: ScreenOverride = {
       kind: "restore",
       check: screen.excluded_by as string,
       at: timestamp(),
