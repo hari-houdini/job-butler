@@ -1,0 +1,32 @@
+# Opens update PRs for the pinned action SHAs (keeping the version comment) and for the exact-pinned
+# npm packages. Weekly, so updates arrive in batches and are easy to review. Commit messages use
+# Conventional Commit prefixes, so they pass the commit lint.
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # Keep the exact versions this repo pins (no ^ or ~ ranges in package.json).
+    versioning-strategy: "increase"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
