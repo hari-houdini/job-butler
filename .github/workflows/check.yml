@@ -1,11 +1,15 @@
 name: check
 
-# The same gate as `npm run check` (typecheck, lint, conflict-marker check, tests), run on
-# every push and pull request, on Node 26 only. The real-browser Apply tests need Chromium:
-# it is cached between runs, and CI is set on GitHub, so a missing browser fails the run
-# rather than skipping its tests (core/test/harness.ts, realBrowserTest).
+# The same gate as `npm run check` (typecheck, lint, conflict-marker check, tests), on Node 26.
+# The gate runs as parallel jobs: the static checks in one, the tests split across three shards
+# (`node --test --test-shard`). When a step is added to `npm run check`, add it here too.
+# The real-browser Apply tests need Chromium: it is cached between runs, and CI is set on GitHub,
+# so a missing browser fails the run rather than skipping its tests (core/test/harness.ts).
+#
+# Runs on pushes to main and on pull requests. Pushing a pull request's branch runs once, not twice.
 on:
   push:
+    branches: [main]
   pull_request:
 
 # Least privilege: the check only reads the repository.
@@ -18,13 +22,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  static:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # Full history, so a pull request's commits can be linted against its base.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "26"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run check:markers
+      # Every commit in a pull request must be Conventional Commits (the local commit-msg hook can be skipped).
+      - name: Lint pull request commit messages
+        if: github.event_name == 'pull_request'
+        run: npx --no -- commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "26"
@@ -54,8 +81,6 @@ jobs:
           if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
-      - run: npm run check
-      # Every commit in a pull request must be Conventional Commits (the local commit-msg hook can be skipped).
-      - name: Lint pull request commit messages
-        if: github.event_name == 'pull_request'
-        run: npx --no -- commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+      # Each shard runs a third of the test files. The three together are the whole suite.
+      - name: Run the tests (shard ${{ matrix.shard }} of 3)
+        run: npm test -- --test-shard=${{ matrix.shard }}/3
