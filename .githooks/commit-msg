@@ -1,0 +1,6 @@
+#!/bin/sh
+# Rejects a commit message that is not Conventional Commits. Installed by `npm install` (prepare),
+# which points core.hooksPath at .githooks. The CI check lints every commit in a pull request too,
+# so `git commit --no-verify` cannot get a bad message onto main.
+set -e
+npm exec --no -- commitlint --edit "$1"

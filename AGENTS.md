@@ -4,6 +4,10 @@
 
 Before adding a core command, test, skill, subagent or hook, read `docs/agents/core-conventions.md`. Run `npm run check` before committing.
 
+## Commits and releases
+
+Commit subjects must be Conventional Commits (`feat(scope): ...`, `fix: ...`); the commit-msg hook and CI enforce it. Releases are cut by release-please from those commits. See `docs/agents/commits-and-releases.md`.
+
 ## Agent skills
 
 ### Issue tracker
