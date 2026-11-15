@@ -56,20 +56,46 @@ export const SCREEN_STEPS: ScreenStep[] = [
   limitStep,
 ];
 
-/** What `screen` holds on a Listing. */
-export interface ScreenResult {
-  screened_at: string;
-  run_id: string | null;
+/**
+ * The Screen outcome as readers see it on a Listing's `screen`. Restore, the decision tree and
+ * the view import this type; only this module writes it.
+ */
+export interface ScreenOutcome {
   outcome: "shortlist" | "excluded";
   /** The Check that excluded the Listing, else null. */
   excluded_by: string | null;
   checks: Check[];
+  /** The real results behind an exclusion, kept so a restore can swap them in. */
+  after_exclusion?: Check[];
+  flags?: { check: string; label: string }[];
+  badges?: { check: string; label: string }[];
+  fit?: { score: number; band: string };
+  [stored: string]: unknown;
+}
+
+/**
+ * One entry in a Listing's `overrides`: a decision the job seeker made. `kind` names it
+ * (`restore`, `application_limit`, `split`). Each kind uses the optional fields it needs.
+ */
+export interface ScreenOverride {
+  kind: string;
+  at?: string;
+  check?: string;
+  alias?: string;
+  from?: string;
+  into?: string;
+  /** application_limit (#42): the limit label the job seeker picked past. */
+  label?: string;
+}
+
+/** What `screen` holds on a Listing. */
+export interface ScreenResult extends ScreenOutcome {
+  screened_at: string;
+  run_id: string | null;
   flags: { check: string; label: string }[];
   badges: { check: string; label: string }[];
   /** Set by `screen rescore`; cleared when the Listing is scored again. */
   rescore_requested_at: string | null;
-  fit?: { score: number; band: string };
-  [stored: string]: unknown;
 }
 
 function screenOf(listing: StoredRecord): ScreenResult | undefined {

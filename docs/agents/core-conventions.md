@@ -11,20 +11,20 @@ agents/           worker subagents, <stage>-worker.md (see "Stage skills and wor
 hooks/hooks.json  the Approval PreToolUse hook and a SessionStart hook; both call the core
 core/src/         the TypeScript core: cli.ts (entry), commands.ts (registry), one module per concern;
                   boards/ holds one reader per ATS
-core/test/        *.test.ts, harness.ts, fixtures/
+core/test/        *.test.ts, harness.ts, view-fixture.ts (records for the view tests), fixtures/
 ```
 
 ## Runtime: Node type stripping, no build, no runtime dependencies
 
-- The core is plain `.ts` run directly by Node (>= 22.18) through built-in type stripping. There is no build step and no `dist/`.
+- The core is plain `.ts` run directly by Node (>= 26) through built-in type stripping. There is no build step and no `dist/`.
 - Write erasable TypeScript only (no `enum`, `namespace` or constructor parameter properties) and import local files with their `.ts` extension. `tsc --noEmit` (`erasableSyntaxOnly`) enforces both.
 - A plugin install copies the repo without running `npm install`, so the core has **no runtime dependencies**. Dev dependencies (TypeScript, Biome, `@types/node`) are fine. A ticket that truly needs a runtime package (Playwright for Apply, DOCX/PDF rendering for Tailor) must decide how it gets installed and record that here. (Tailor decided: hand-written writers, see "Tailor". Apply decided: pinned `playwright-core` as a devDependency, see "Apply".)
 - Skills call the core as `node "${CLAUDE_SKILL_DIR}/../../core/src/cli.ts" <command> [args]`.
 
 ## CLI
 
-- Commands are words, longest match wins (`help` lists them all): e.g. `status`, `record put|get|list`, `run start|end|status`, `profile put|get|check`, `preferences init|get|set`. Add a command by adding an entry to `core/src/commands.ts` that calls a module in `core/src/`. Name multi-word commands `<noun> <verb>` (e.g. `listing upsert`, `lock status`).
-- **Output:** exactly one JSON object on stdout, nothing else. Use snake_case keys. (Exception: `hook ...` commands set `raw: true` and print Claude Code's hook JSON instead.)
+- Commands are words, longest match wins (`help` lists them all): e.g. `status`, `record put|get|list`, `run start|end|status`, `profile put|get|check`, `preferences init|get|set`. Add a command by adding an entry to `core/src/commands.ts` that calls a module in `core/src/`. Declare its positionals, flags and input in the entry's `declaration` (`core/src/usage.ts` generates the usage line from it; the summary is hand-written). Name multi-word commands `<noun> <verb>` (e.g. `listing upsert`, `lock status`).
+- **Output:** exactly one JSON object on stdout, nothing else. Use snake_case keys. (Exception: `hook ...` commands set `raw: true` and print Claude Code's hook JSON instead. Claude Code reads hook JSON only on exit 0, so the startup guard on the hook path (`hook pre-tool-use`: a `permissionDecision: deny`; `hook session-start`: a `systemMessage`) exits 0. Exit 1 there would be a non-blocking error and the tool would run.)
   - success: `{"ok": true, ...}`, exit 0
   - refusal: `{"ok": false, "error": {"code": "LOCKED", "message": "..."}}`, exit 1. Throw `CoreError(code, message, details?)`; codes are SCREAMING_SNAKE. `message` is for the job seeker: what happened and what to do. Skills relay it as written.
   - usage: `usageError(...)`, code `USAGE`, exit 2. Unexpected crash: code `INTERNAL`, exit 70.
@@ -36,6 +36,7 @@ core/test/        *.test.ts, harness.ts, fixtures/
   - `JOB_BUTLER_GH`: the `gh` executable.
   - `JOB_BUTLER_OPENER`: the program `view` opens the page with (tests).
   - `JOB_BUTLER_FAULT`: fault injection for tests (`crash-before-replace`).
+  - `JOB_BUTLER_NODE_VERSION`: the Node version the startup guard (`core/src/node-guard.ts`) checks, in place of the running one (tests only, read with `nodeVersionOverride()`).
   - `JOB_BUTLER_SESSION_PID`: overrides the session process that owns a run (tests stand in another session with a live or dead pid).
   - `JOB_BUTLER_SESSION_ID`: the Claude Code session (or `--session`). The SessionStart hook (`hook session-start`) exports it to Bash through `CLAUDE_ENV_FILE`; read it with `sessionId()`.
   - `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CONFIG_DIR`: Claude Code's login settings, read only by the login-type check (`claudeCodeVar()`, see "Login type check").
@@ -84,7 +85,7 @@ Two layers: the Stage skill asks at the Checkpoint, and the PreToolUse hook (`ho
    ```
    `--session` may be left out when `JOB_BUTLER_SESSION_ID` is set. Actions from another Checkpoint refuse with `ACTION_NOT_AT_CHECKPOINT`; no session refuses with `NO_SESSION`.
 4. Run each action as its own written-out core command. Each is allowed once; a second run, or a run in a later session, is denied (`already used` / `has expired`), and you must ask again.
-5. In the command's Event log entry, cite the Approval: `approvalUsedFor(dataDir, action)` returns the record whose action the hook just spent (its `id`, `checkpoint`, `approved_at`).
+5. In the command's Event log entry, cite the Approval: `citeSpentApproval(dataDir, action, missing)` in `approval.ts` returns the citation of the spent Approval for that action (its `id`, `checkpoint`, `approved_at`, `action`). It throws `APPROVAL_MISSING` with the command's own `missing` message when none is spent.
 
 Approval record (`pipeline/approval/<uuid>.json`): `checkpoint`, `session_id`, `approved_at`, `actions: [{action, spent_at}]`. `approval list [--session]` shows each as `active`, `spent` or `expired`.
 
@@ -223,8 +224,8 @@ Steps in their own modules, in `SCREEN_STEPS` order: `scamStep`, `denyStep` (`co
 
 - `origin` (`picked`; `external` from #50), `listing` (the Listing ID, the field Dedupe finds Applications by; null for External), `company`, `title`, `status`, `event_log`, `gmail_threads: []`, `answers: []`, `fill_plan: null`, `tailor: null`, `decision_tree` (the Listing's tree path). The Listing gets `application_id`.
 - Status values (`STATUSES`, snake_case keys with display names): `picked`, `tailored`, `ready_to_apply`, `paused`, `handover`, `submitted`, `interview`, `rejected`, `offer`, `withdrawn`, `no_response`.
-- Event log entry (append only): `{at, stage, from, to, reason, approval}`; `approval` is `{id, checkpoint, approved_at, action}` for a Checkpoint change, else null.
-- `application pick <listing-id>...`: one action covers all the IDs (`application pick <id-1> <id-2>`), one `withWriter`. It refuses `APPROVAL_MISSING` unless `approvalUsedFor` finds the spent Approval for that exact action (so it never runs outside the hook), and all-or-nothing `NOT_FOUND`, `NOT_ON_SHORTLIST` (unscreened, excluded or gone) or `ALREADY_PICKED`. Each new entry cites the Approval. Later Checkpoint commands (`application status`, `application submitted`) follow the same shape: check `approvalUsedFor`, append an entry, rewrite the tree in the same `withWriter`.
+- Event log entry (append only): `{at, stage, from, to, reason, approval}`; `approval` is `{id, checkpoint, approved_at, action}` for a Checkpoint change, else null. Every Status move goes through `moveStatus` in `core/src/status-move.ts` (#67), which appends the entry and redraws the Listing's tree in the same write. Creating an Application with its first Status is not a move.
+- `application pick <listing-id>...`: one action covers all the IDs (`application pick <id-1> <id-2>`), one `withWriter`. It refuses `APPROVAL_MISSING` unless `citeSpentApproval` finds the spent Approval for that exact action (so it never runs outside the hook), and all-or-nothing `NOT_FOUND`, `NOT_ON_SHORTLIST` (unscreened, excluded or gone) or `ALREADY_PICKED`. Each new entry cites the Approval. Later Checkpoint commands (`application status`, `application submitted`) follow the same shape: call `citeSpentApproval`, append an entry, rewrite the tree in the same `withWriter`.
 
 ## Decision tree (set by #34, `core/src/decision-tree.ts`)
 
@@ -267,7 +268,8 @@ Both commands are destructive: they're in `GATED_COMMANDS`, so the hook runs the
 - **Tabs:** Needs you (default): Shortlist pick (from `rankShortlist`), paused Apply (`status: paused`, field from `application.pause.field`), Handover, Digest change (an Application with `pending_change: {to, reason}`, which Track #48 should write; numbered so the button copies `approve <n>`), failed Discover sources (last Discover run, status not `ok`), then the other Applications, then Excluded in a closed `<details>`. Board: one column per Status in `STATUSES`, External badge for `origin: "external"`. Listings: list plus detail; the tree source is `renderTree`, so the page and the `.mmd` can't drift; a `click <node> call jbNode("<node>")` line is appended per check and Event log node (loose Mermaid security, needed for clicks) and the node's evidence comes from the same Check.
 - **Replies the buttons copy:** `pick <letter>`, `pick a, b`, `why <letter|application id>`, `approve <n>`, `restore <company> <title>`. A new reply must also be in the terminal digest.
 - **Colour key:** the `classDef` list in `decision-tree.ts`; the legend and the checks list use the same colours and the terminal marks (✓ pass, ! warn, ✗ fail, · not reached).
-- **Vendored Mermaid:** `core/vendor/mermaid/mermaid.min.js`, Mermaid **10.9.1** (jsDelivr `npm/mermaid@10.9.1/dist/mermaid.min.js`), MIT licence in `core/vendor/mermaid/LICENSE`. Excluded from Biome in `biome.json` (`!core/vendor`). To upgrade, replace both files, update this version, and re-run the tests. Never load it from a CDN.
+- **Vendored Mermaid:** `core/vendor/mermaid/mermaid.min.js`, Mermaid **12.3.0** (jsDelivr `npm/mermaid@12.3.0/dist/mermaid.min.js`), MIT licence in `core/vendor/mermaid/LICENSE`. Excluded from Biome in `biome.json` (`!core/vendor`). To upgrade, replace both files, update this version, and re-run the tests. Never load it from a CDN.
+- **Tests:** `core/test/view.test.ts` checks the built page as text. `core/test/view-browser.test.ts` opens it in Chromium (real browser, see "Apply" for the gate): the tree is drawn, a node click shows its rule and evidence, hostile text in the tree and the evidence panel stays text, and at Mermaid's strict level the panel never updates (the page is rebuilt at strict for that test).
 
 ## Login type check (set by #60, code in `core/src/login-type.ts`)
 
@@ -450,9 +452,9 @@ Code: `core/src/sponsorship.ts` (the regime-neutral interface, the verdict combi
 
 **LinkedIn-only Listings** (no employer-ATS alias with a link) are not filled: `apply prepare` returns `by_hand: [{application_id, link}]`.
 
-**Dependency decision: pinned `playwright-core@1.64.1` as a devDependency, Chromium installed by a documented step.** A plugin install runs no `npm install`, so the job seeker runs `npm install` in the plugin folder once, then `npx playwright-core install chromium` (the 1.64.1 build is Chromium 156, revision 1248, about 150 MB). Why: Apply needs a real, visible browser; `playwright-core` is the small package (no bundled browsers, no test runner), and keeping it out of `dependencies` leaves the core's "no runtime dependencies" rule true for every command except `apply fill`, which fails with `BROWSER_UNAVAILABLE` and these instructions when the package or browser is missing (Playwright is imported on demand). `JOB_BUTLER_PLAYWRIGHT=<path to playwright-core/index.js>` points at an existing copy. The browser is a detached Chromium on a fresh temp profile (`job-butler-browser-*` under the OS temp dir: no saved logins, cookies or history) that Playwright reaches over the DevTools port, so it stays open after the CLI call for the Handover; `apply close` (or any failed fill) kills it and deletes the profile. `JOB_BUTLER_BROWSER_HEADLESS=1` hides the window (tests).
+**Dependency decision: pinned `playwright-core@1.65.1` as a devDependency, Chromium installed by a documented step.** A plugin install runs no `npm install`, so the job seeker runs `npm install` in the plugin folder once, then `npx playwright-core install chromium` (the 1.65.1 build is Chromium 159 (159.0.8154.6), revision 1255, about 150 MB). Why: Apply needs a real, visible browser; `playwright-core` is the small package (no bundled browsers, no test runner), and keeping it out of `dependencies` leaves the core's "no runtime dependencies" rule true for every command except `apply fill`, which fails with `BROWSER_UNAVAILABLE` and these instructions when the package or browser is missing (Playwright is imported on demand). `JOB_BUTLER_PLAYWRIGHT=<path to playwright-core/index.js>` points at an existing copy. The browser is a detached Chromium on a fresh temp profile (`job-butler-browser-*` under the OS temp dir: no saved logins, cookies or history) that Playwright reaches over the DevTools port, so it stays open after the CLI call for the Handover; `apply close` (or any failed fill) kills it and deletes the profile. `JOB_BUTLER_BROWSER_HEADLESS=1` hides the window (tests).
 
-**Tests** (`core/test/apply.test.ts`): the fill logic runs against the fake driver (`JOB_BUTLER_BROWSER=fake`, `JOB_BUTLER_FAKE_PAGE=<scenario>` from `fixtures/browser/fake/`: clean, mismatch, empty required, mid-fill error, page down, changed, submit control). Tests marked `real browser` drive Chromium against local copies of the form (`fixtures/browser/greenhouse-101*.html`, served by a recording server that proves nothing is posted); they skip when `playwright-core` can't be resolved (install it, or set `JOB_BUTLER_PLAYWRIGHT`).
+**Tests** (`core/test/apply.test.ts`): the fill logic runs against the fake driver (`JOB_BUTLER_BROWSER=fake`, `JOB_BUTLER_FAKE_PAGE=<scenario>` from `fixtures/browser/fake/`: clean, mismatch, empty required, mid-fill error, page down, changed, submit control). Tests marked `real browser` drive Chromium against local copies of the form (`fixtures/browser/greenhouse-101*.html`, served by a recording server that proves nothing is posted); they skip when `playwright-core` can't be resolved (install it, or set `JOB_BUTLER_PLAYWRIGHT`) or Chromium isn't installed, and **FAIL when the `CI` environment variable is set**, so a CI runner without the browser can't pass by skipping (`realBrowserTest` in `harness.ts`; `realBrowser()` loads `playwright-core` once and returns its `chromium` launcher for in-process tests).
 
 ## Apply: Lever and Ashby forms (set by #46)
 

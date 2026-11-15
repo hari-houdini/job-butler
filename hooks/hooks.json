@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/core/src/cli.ts\" hook pre-tool-use || { echo \"Job Butler's Approval hook couldn't run, so it blocked this tool call. Check that Node 22.18 or later is installed.\" >&2; exit 2; }"
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/core/src/cli.ts\" hook pre-tool-use || { echo \"Job Butler's Approval hook couldn't run, so it blocked this tool call. Check that Node 26 or later is installed.\" >&2; exit 2; }"
           }
         ]
       }

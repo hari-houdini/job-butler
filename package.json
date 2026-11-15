@@ -5,7 +5,7 @@
   "description": "Job Butler: a Claude Code plugin with a deterministic TypeScript core CLI",
   "type": "module",
   "engines": {
-    "node": ">=22.18"
+    "node": ">=26.0.0"
   },
   "scripts": {
     "cli": "node core/src/cli.ts",
@@ -19,8 +19,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
-    "@types/node": "22.20.5",
-    "playwright-core": "1.64.1",
+    "@types/node": "26.6.6",
+    "playwright-core": "1.65.1",
     "typescript": "7.0.2"
   }
 }

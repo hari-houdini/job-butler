@@ -58,6 +58,11 @@ export function browserDriver(): "fake" | "playwright" {
   return process.env.JOB_BUTLER_BROWSER === "fake" ? "fake" : "playwright";
 }
 
+/** The Node version the startup guard checks, in place of the running one (tests only). */
+export function nodeVersionOverride(): string | undefined {
+  return process.env.JOB_BUTLER_NODE_VERSION || undefined;
+}
+
 /** The scripted page the fake driver plays (tests). */
 export function fakePageFile(): string | undefined {
   return process.env.JOB_BUTLER_FAKE_PAGE;

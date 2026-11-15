@@ -5,6 +5,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { type EventLogEntry, statusLabel } from "./application.ts";
+import type { ScreenOutcome, ScreenOverride } from "./screen.ts";
 import type { Check } from "./screen-check.ts";
 import { type StoredRecord, writeThenReplace } from "./store.ts";
 
@@ -48,16 +49,9 @@ export function nodeId(check: string): string {
   return `c_${check.replace(/[^A-Za-z0-9]/g, "_")}`;
 }
 
-interface Screen {
-  outcome: "shortlist" | "excluded";
-  excluded_by: string | null;
-  checks: Check[];
-  fit?: { score: number; band: string };
-}
-
 /** The `.mmd` text for one Listing, from its stored records only. */
 export function renderTree(listing: StoredRecord, application?: StoredRecord): string {
-  const screen = listing.screen as Screen;
+  const screen = listing.screen as ScreenOutcome;
   const out: string[] = [
     `%% Job Butler Decision tree for Listing ${listing.id}.`,
     "%% Generated from stored records; regenerated in full on every change. Don't edit.",
@@ -130,24 +124,13 @@ export function renderTree(listing: StoredRecord, application?: StoredRecord): s
   return finish(out);
 }
 
-interface Override {
-  kind: string;
-  at?: string;
-  alias?: string;
-  from?: string;
-  into?: string;
-  /** application_limit (#42): the limit label the job seeker picked past. */
-  label?: string;
-  check?: string;
-}
-
 /**
  * One node label per override on the Listing (`listing.overrides`, the job seeker's own
  * decisions). Split (#37): `into` on the Listing split from, `from` on the one split off.
  * #39 (restore) and #42 (limit override) add their kinds here.
  */
 function overrideNodes(listing: StoredRecord): string[] {
-  const overrides = Array.isArray(listing.overrides) ? (listing.overrides as Override[]) : [];
+  const overrides = Array.isArray(listing.overrides) ? (listing.overrides as ScreenOverride[]) : [];
   return overrides.map((o) => {
     let what = `${o.kind}`;
     if (o.kind === "restore")

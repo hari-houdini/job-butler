@@ -3,8 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { FIXTURES, hostVar, judgment, runCli, tempDir } from "./harness.ts";
+import { FIXTURES, judgment, realBrowser, realBrowserTest, runCli, tempDir } from "./harness.ts";
 
 // biome-ignore lint/suspicious/noExplicitAny: parsed test JSON
 type Any = any;
@@ -151,6 +150,8 @@ test("apply plan stores the Fill plan and moves the Application to Ready to appl
   assert.equal(last.stage, "apply");
   assert.equal(last.from, "tailored");
   assert.equal(last.to, "ready_to_apply");
+  assert.equal(last.approval, null);
+  assert.match(await treeOf(dataDir), /Status: Ready to apply/);
 });
 
 test("apply plan refuses values the sources can't back, writing nothing", async (t) => {
@@ -193,6 +194,8 @@ test("an unmappable field pauses the Application and keeps the partial plan", as
   assert.equal(a.fill_plan.fields.length, 7);
   assert.equal(a.fill_plan.unmappable[0].label, "What is your expected salary in GBP?");
   assert.equal(a.event_log.at(-1).to, "paused");
+  assert.equal(a.event_log.at(-1).stage, "apply");
+  assert.match(await treeOf(dataDir, "greenhouse:acme:102"), /Status: Paused/);
 });
 
 test("an answer given during Apply is kept on the Application, never in the Answer bank", async (t) => {
@@ -215,6 +218,9 @@ test("an answer given during Apply is kept on the Application, never in the Answ
   assert.equal(field.source.kind, "application_answer");
   assert.equal(a.status, "ready_to_apply");
   assert.equal(a.fill_plan.state, "planned");
+  assert.equal(a.event_log.at(-1).from, "paused");
+  assert.equal(a.event_log.at(-1).to, "ready_to_apply");
+  assert.match(await treeOf(dataDir, "greenhouse:acme:102"), /Status: Ready to apply/);
   const bankAfter = (await runCli(["profile", "get", "--section", "answer_bank"], { dataDir }))
     .stdout;
   assert.equal(bankAfter, bankBefore);
@@ -260,6 +266,9 @@ const fake = (scenario: string) => ({
   JOB_BUTLER_BROWSER: "fake",
   JOB_BUTLER_FAKE_PAGE: join(FIXTURES, "browser", "fake", `${scenario}.json`),
 });
+/** The Application's Decision tree text; the Listing defaults to job 101. */
+const treeOf = async (dataDir: string, listing = LISTING) =>
+  readFileSync(join(dataDir, "decision-trees", `${encodeURIComponent(listing)}.mmd`), "utf8");
 const fill = (dataDir: string, scenario: string) =>
   runCli(["apply", "fill", APP], { dataDir, env: fake(scenario) });
 
@@ -274,6 +283,7 @@ async function ready(dataDir: string, planInput?: Any) {
 test("a clean fill reads every field back against the plan and leaves the Application ready", async (t) => {
   const dataDir = tempDir(t);
   await ready(dataDir);
+  const before = (await app(dataDir)).event_log.length;
   const r = await fill(dataDir, "clean");
   assert.equal(r.code, 0, r.stdout);
   assert.equal(r.json.outcome, "filled");
@@ -281,6 +291,9 @@ test("a clean fill reads every field back against the plan and leaves the Applic
   const a = await app(dataDir);
   assert.equal(a.fill_plan.state, "filled");
   assert.equal(a.status, "ready_to_apply");
+  // Staying at Ready to apply is not a Status move: no Event log entry is added.
+  assert.equal(a.event_log.length, before);
+  assert.match(await treeOf(dataDir), /Status: Ready to apply/);
   for (const f of a.fill_plan.fields) {
     assert.equal(f.readback.match, true, f.name);
     assert.equal(f.readback.value, f.name === "resume" ? "Ada-Example-Resume.docx" : f.value);
@@ -381,6 +394,31 @@ test("the fill refuses a control that would submit the form", async (t) => {
   );
 });
 
+test("each Apply Status move adds one Event log entry and redraws the tree to match", async (t) => {
+  const dataDir = tempDir(t);
+  await ready(dataDir);
+  let seen = (await app(dataDir)).event_log.length;
+  const moveTo = async (to: string, label: string, run: () => Promise<unknown>) => {
+    await run();
+    const a = await app(dataDir);
+    assert.equal(a.status, to, label);
+    assert.equal(a.event_log.length, seen + 1, label);
+    assert.equal(a.event_log.at(-1).to, to, label);
+    assert.equal(a.event_log.at(-1).stage, "apply", label);
+    seen = a.event_log.length;
+    assert.ok((await treeOf(dataDir)).includes(`Status: ${label}`), label);
+  };
+  await moveTo("paused", "Paused", async () =>
+    assert.equal((await fill(dataDir, "error-mid-fill")).json.outcome, "paused"),
+  );
+  await moveTo("ready_to_apply", "Ready to apply", async () =>
+    assert.equal((await fill(dataDir, "clean")).json.outcome, "filled"),
+  );
+  await moveTo("handover", "Handover", async () =>
+    assert.equal((await runCli(["apply", "handover", APP], { dataDir })).code, 0),
+  );
+});
+
 test("a paused Application resumes with another fill once the page is fine", async (t) => {
   const dataDir = tempDir(t);
   await ready(dataDir);
@@ -394,9 +432,15 @@ test("the Handover shows every field and file, and Submitted needs the job seeke
   const dataDir = tempDir(t);
   await ready(dataDir);
   assert.equal((await fill(dataDir, "clean")).json.outcome, "filled");
+  const eventsBefore = (await app(dataDir)).event_log.length;
   const h = await runCli(["apply", "handover", APP], { dataDir });
   assert.equal(h.code, 0, h.stdout);
   assert.equal(h.json.status, "handover");
+  const handed = await app(dataDir);
+  assert.equal(handed.event_log.length, eventsBefore + 1);
+  assert.equal(handed.event_log.at(-1).from, "ready_to_apply");
+  assert.equal(handed.event_log.at(-1).to, "handover");
+  assert.match(await treeOf(dataDir), /Status: Handover/);
   const shown = h.json.fields as Any[];
   assert.equal(shown.length, 7);
   assert.deepEqual(
@@ -443,6 +487,8 @@ test("the Handover shows every field and file, and Submitted needs the job seeke
   assert.equal(last.to, "submitted");
   assert.equal(last.approval.checkpoint, "handover");
   assert.equal(last.approval.action, action);
+  assert.equal(a.event_log.length, eventsBefore + 2);
+  assert.match(await treeOf(dataDir), /Status: Submitted/);
 });
 
 /** An Application the job seeker made elsewhere, dated inside the default cooldown window. */
@@ -554,17 +600,8 @@ test("while Apply runs, the hook blocks Playwright tools that could click Submit
 // ---------------------------------------------------------------------------------------
 // A real browser, when playwright-core and its Chromium are installed
 
-function playwrightPath(): string | undefined {
-  const override = hostVar("JOB_BUTLER_PLAYWRIGHT");
-  if (override) return override;
-  try {
-    return fileURLToPath(import.meta.resolve("playwright-core"));
-  } catch {
-    return undefined;
-  }
-}
-const REAL = playwrightPath();
-const real = { skip: REAL === undefined ? "playwright-core isn't installed" : false };
+const BROWSER = await realBrowser();
+const realTest = realBrowserTest(BROWSER);
 
 /** Serve the browser fixtures and record every request, so a test can see nothing was posted. */
 async function recordingServer(t: import("node:test").TestContext) {
@@ -587,7 +624,7 @@ async function recordingServer(t: import("node:test").TestContext) {
 
 const browserEnv = () => ({
   JOB_BUTLER_BROWSER_HEADLESS: "1",
-  ...(REAL === undefined ? {} : { JOB_BUTLER_PLAYWRIGHT: REAL }),
+  ...(BROWSER.available ? { JOB_BUTLER_PLAYWRIGHT: BROWSER.playwright } : {}),
 });
 
 async function realRun(t: import("node:test").TestContext, page: string) {
@@ -600,9 +637,8 @@ async function realRun(t: import("node:test").TestContext, page: string) {
   return { dataDir, r, requests };
 }
 
-test(
+realTest(
   "real browser: a clean fill reads back, leaves the browser open, and closing deletes its profile",
-  real,
   async (t) => {
     const { dataDir, r, requests } = await realRun(t, "greenhouse-101.html");
     assert.equal(r.code, 0, r.stdout);
@@ -640,20 +676,20 @@ test(
   },
 );
 
-test("real browser: a page that rewrites a value is a read-back mismatch", real, async (t) => {
+realTest("real browser: a page that rewrites a value is a read-back mismatch", async (t) => {
   const { r } = await realRun(t, "greenhouse-101-mangle.html");
   assert.equal(r.json.outcome, "blocked", r.stdout);
   assert.equal((r.json.blockers as Any[])[0].field, "phone");
 });
 
-test("real browser: a control that submits is refused and nothing is posted", real, async (t) => {
+realTest("real browser: a control that submits is refused and nothing is posted", async (t) => {
   const { r, requests } = await realRun(t, "greenhouse-101-submit.html");
   assert.equal(r.json.outcome, "paused", r.stdout);
   assert.equal(r.json.code, "SUBMIT_REFUSED");
   assert.ok(requests.every((q) => q.startsWith("GET ")));
 });
 
-test("real browser: a form missing a planned field pauses as a page change", real, async (t) => {
+realTest("real browser: a form missing a planned field pauses as a page change", async (t) => {
   const { r } = await realRun(t, "greenhouse-101-changed.html");
   assert.equal(r.json.outcome, "paused", r.stdout);
   assert.equal(r.json.code, "PAGE_CHANGED");

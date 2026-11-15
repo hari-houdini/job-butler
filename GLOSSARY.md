@@ -120,6 +120,10 @@ _Avoid_: State, stage
 The append-only record of every Status change on an Application, with the Stage that made it and when.
 _Avoid_: History, audit trail
 
+**Status move**:
+A change of an Application's Status from one value to another, which appends an Event log entry and redraws the Listing's Decision tree in the same write. Creating an Application with its first Status is not a Status move.
+_Avoid_: Transition, status change, update
+
 **Decision tree**:
 A diagram of every check a Listing went through and the branch each one took, from Screen onwards and on into its Application. It is a view of what the pipeline already recorded, never a separate account of it.
 _Avoid_: Audit trail, explanation, reasoning trace

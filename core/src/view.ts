@@ -12,8 +12,7 @@ import { type EventLogEntry, STATUSES, statusLabel } from "./application.ts";
 import { nodeId, renderTree } from "./decision-tree.ts";
 import { openerCommand, timestamp } from "./env.ts";
 import type { ExternalOffer } from "./external.ts";
-import { rankShortlist } from "./screen.ts";
-import type { Check } from "./screen-check.ts";
+import { rankShortlist, type ScreenOutcome } from "./screen.ts";
 import { getRecord, listRecords, type StoredRecord, writeThenReplace } from "./store.ts";
 
 export const VIEW_DIR = "view";
@@ -32,17 +31,8 @@ function escapeHtml(value: unknown): string {
   );
 }
 
-interface Screen {
-  outcome: "shortlist" | "excluded";
-  excluded_by: string | null;
-  checks: Check[];
-  flags?: { label: string }[];
-  badges?: { label: string }[];
-  fit?: { score: number; band: string };
-}
-
-const screenOf = (l: StoredRecord): Screen | undefined =>
-  l.screen && typeof l.screen === "object" ? (l.screen as Screen) : undefined;
+const screenOf = (l: StoredRecord): ScreenOutcome | undefined =>
+  l.screen && typeof l.screen === "object" ? (l.screen as ScreenOutcome) : undefined;
 
 const eventsOf = (a?: StoredRecord): EventLogEntry[] =>
   Array.isArray(a?.event_log) ? (a?.event_log as EventLogEntry[]) : [];
@@ -233,7 +223,7 @@ function needsTab(d: Data): string {
   out.push(
     `<details class="excluded"><summary>Excluded (${excluded.length})</summary>${excluded
       .map((l) => {
-        const s = screenOf(l) as Screen;
+        const s = screenOf(l) as ScreenOutcome;
         const by = s.checks.find((c) => c.check === s.excluded_by);
         const why = by
           ? `${escapeHtml(by.name)}: ${escapeHtml(by.result)}. ${by.evidence.map(escapeHtml).join(" ")}`
@@ -464,6 +454,9 @@ mermaid.render("jb"+(++n),src.textContent).then(function(r){box.innerHTML=r.svg;
 window.jbNode=function(id){var info=(data[current]||{})[id],a=document.querySelector('article[data-listing="'+CSS.escape(current)+'"]'),p=a&&a.querySelector(".nodeinfo");if(!info||!p)return;
 p.textContent="";var h=document.createElement("b");h.textContent=info.title;p.appendChild(h);var ul=document.createElement("ul");
 info.lines.forEach(function(l){var li=document.createElement("li");li.textContent=l;ul.appendChild(li);});p.appendChild(ul);};
+// securityLevel stays "loose": Mermaid 12.3.0 binds click-with-call (click-to-evidence) only at loose.
+// Checked in a real browser (core/test/view-browser.test.ts): at "strict" the evidence panel never updates.
+// Label text is still escaped in decision-tree.ts, and the hostile-text tests cover it.
 if(window.mermaid){mermaid.initialize({startOnLoad:false,securityLevel:"loose",theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"});}
 })();
 `;

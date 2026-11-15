@@ -4,7 +4,7 @@
 // state shapes are in external.ts. See docs/agents/core-conventions.md, "External applications".
 import { randomUUID } from "node:crypto";
 import type { EventLogEntry } from "./application.ts";
-import { approvalUsedFor, normaliseAction } from "./approval.ts";
+import { citeSpentApproval, normaliseAction } from "./approval.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { externalSettings } from "./external.ts";
@@ -12,11 +12,11 @@ import { getRecord, withWriter } from "./store.ts";
 import {
   type ClassifiedMessage,
   CONNECTOR,
-  learnableDomains,
   type MessageRef,
   readSync,
   syncFields,
 } from "./track.ts";
+import { learnableDomains } from "./track-ladder.ts";
 
 const refOf = (m: ClassifiedMessage): MessageRef => ({
   id: m.message_id,
@@ -42,15 +42,12 @@ export async function createExternal(dataDir: string, args: string[]) {
     throw usageError("application external: give one offer number, e.g. application external 4");
   }
   const action = normaliseAction(`application external ${n}`);
-  const approval = await approvalUsedFor(dataDir, action);
-  if (approval === undefined) {
-    throw new CoreError(
-      "APPROVAL_MISSING",
-      `There's no digest-status Approval for "${action}", so no External application was created. ` +
-        "Show the digest, record the job seeker's yes with `approval record digest-status`, then run it.",
-      { action },
-    );
-  }
+  const approval = await citeSpentApproval(
+    dataDir,
+    action,
+    `There's no digest-status Approval for "${action}", so no External application was created. ` +
+      "Show the digest, record the job seeker's yes with `approval record digest-status`, then run it.",
+  );
   return withWriter(dataDir, "application external", async (w) => {
     if (!(await externalSettings(dataDir)).enabled) {
       throw new CoreError(
@@ -80,12 +77,7 @@ export async function createExternal(dataDir: string, args: string[]) {
       reason:
         `Applied outside Job Butler; earliest confirmation ${offer.applied_at.slice(0, 10)} ` +
         `(${messages.length} message${messages.length === 1 ? "" : "s"} found in your mail).`,
-      approval: {
-        id: approval.id,
-        checkpoint: approval.checkpoint,
-        approved_at: approval.approved_at,
-        action,
-      },
+      approval,
       ...(earliest ? { message: refOf(earliest) } : {}),
     };
     const calendar = messages.filter((m) => m.source === "calendar");

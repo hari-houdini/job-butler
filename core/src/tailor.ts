@@ -10,6 +10,7 @@ import { type Block, type DocumentModel, renderDocument } from "./document.ts";
 import { timestamp } from "./env.ts";
 import { CoreError, usageError } from "./errors.ts";
 import { assertProfileComplete, readProfile } from "./profile.ts";
+import { moveStatus, redrawTree } from "./status-move.ts";
 import {
   getRecord,
   listRecords,
@@ -604,34 +605,30 @@ export async function tailorRecord(dataDir: string, id: string | undefined, inpu
       if (!files.some(([name]) => name === stale) && !kept.includes(stale))
         await rm(join(dir, stale), { recursive: true, force: true });
     }
-    const { schema_version: _v, id: _i, created_at: _c, updated_at: _u, ...fields } = app;
-    const eventLog = [...(app.event_log as unknown[])];
-    let status = app.status;
+    const tailor = {
+      ...(previous?.cover_letter ? { cover_letter: previous.cover_letter } : {}),
+      folder,
+      files: { ...names, notes: "notes.md", notes_json: "notes.json" },
+      revision,
+      tailored_at: at,
+      fit_summary: j.fit_summary,
+      gaps,
+    };
     if (app.status === "picked") {
-      eventLog.push({
-        at,
+      await moveStatus(dataDir, w, app, {
         stage: "tailor",
-        from: "picked",
         to: "tailored",
         reason: `Tailored resume written (revision ${revision}).`,
         approval: null,
+        at,
+        changes: { tailor },
       });
-      status = "tailored";
+    } else {
+      // Re-recording an Application that is already past Picked: no Status move.
+      const { schema_version: _v, id: _i, created_at: _c, updated_at: _u, ...fields } = app;
+      const saved = await w.put("application", app.id, { ...fields, tailor });
+      await redrawTree(dataDir, saved);
     }
-    await w.put("application", app.id, {
-      ...fields,
-      status,
-      event_log: eventLog,
-      tailor: {
-        ...(previous?.cover_letter ? { cover_letter: previous.cover_letter } : {}),
-        folder,
-        files: { ...names, notes: "notes.md", notes_json: "notes.json" },
-        revision,
-        tailored_at: at,
-        fit_summary: j.fit_summary,
-        gaps,
-      },
-    });
   });
 
   return {
