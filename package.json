@@ -1,6 +1,6 @@
 {
   "name": "job-butler",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Job Butler: a Claude Code plugin with a deterministic TypeScript core CLI",
   "type": "module",
