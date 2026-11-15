@@ -82,5 +82,7 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
       # Each shard runs a third of the test files. The three together are the whole suite.
+      # `npm test -- --test-shard=N/3` does not shard: npm appends the flag after the file glob, where
+      # Node ignores it, so every shard ran the whole suite. The shard flag must come before the glob.
       - name: Run the tests (shard ${{ matrix.shard }} of 3)
-        run: npm test -- --test-shard=${{ matrix.shard }}/3
+        run: node --test --test-reporter=dot --test-shard=${{ matrix.shard }}/3 "core/test/**/*.test.ts"
